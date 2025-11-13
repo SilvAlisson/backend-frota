@@ -1,0 +1,286 @@
+// schema.prisma (ATUALIZADO PARA MÓDULO DE MANUTENÇÃO E DOCUMENTAÇÃO)
+
+// Configuração do gerador de cliente Prisma
+generator client {
+  provider = "prisma-client-js"
+}
+
+// Configuração da fonte de dados (nosso Docker/PostgreSQL)
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// --- Modelos Centrais ---
+
+// Representa um veículo da frota.
+model Veiculo {
+  id                String          @id @default(cuid())
+  placa             String          @unique // Garante que cada placa seja única no sistema.
+  modelo            String
+  ano               Int
+  tipoVeiculo       String?         // Ex: "Poliguindaste", "Munck", "Vácuo"
+  tipoCombustivel   TipoCombustivel @default(DIESEL_S10) // Define o combustível principal
+  capacidadeTanque  Float?          // Capacidade em litros. Opcional.
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+
+  // ==========================================================
+  // NOVOS CAMPOS (PASSO 1): CONTROLE DE DOCUMENTAÇÃO
+  // ==========================================================
+  vencimentoCiv     DateTime? // Data de vencimento do CIV (Poliguindaste, Munck, Vácuo)
+  vencimentoCipp    DateTime? // Data de vencimento do CIPP (Munck, Vácuo)
+  // ==========================================================
+
+  // Relacionamentos
+  jornadas       Jornada[]
+  abastecimentos Abastecimento[]
+
+  // ==========================================================
+  // NOVOS RELACIONAMENTOS (PASSO 1): MANUTENÇÃO
+  // ==========================================================
+  ordensServico     OrdemServico[]      // Histórico de manutenções deste veículo
+  planosManutencao  PlanoManutencao[]   // Planos preventivos (Ex: 20.000km)
+  // ==========================================================
+}
+
+// Representa um produto que pode ser comprado (Diesel, ARLA, etc.)
+model Produto {
+  id                 String             @id @default(cuid())
+  nome               String             @unique // Ex: "DIESEL S10", "ARLA 32", "TROCA DE ÓLEO", "PNEU"
+  tipo               TipoProduto        // Essencial para diferenciar combustível, aditivo ou serviço
+  unidadeMedida      String             @default("Litro")
+  createdAt          DateTime           @default(now())
+
+  // Relacionamentos
+  itensAbastecimento ItemAbastecimento[]
+  // ==========================================================
+  // NOVO RELACIONAMENTO (PASSO 1)
+  // ==========================================================
+  itensOrdemServico  ItemOrdemServico[]  // Produto usado em uma manutenção
+  // ==========================================================
+}
+
+// --- Gestão de Usuários e Funções ---
+
+// Representa um usuário (Operador, Encarregado)
+model User {
+  id            String   @id @default(cuid())
+  nome          String
+  matricula     String?  @unique
+  role          UserRole @default(OPERADOR) // Define as permissões
+  email         String   @unique
+  password      String // Senha deve ser armazenada como um hash
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // Relacionamentos
+  jornadasComoOperador    Jornada[]       @relation("OperadorJornada")
+  jornadasComoEncarregado Jornada[]       @relation("EncarregadoJornada")
+  abastecimentos          Abastecimento[]
+  // ==========================================================
+  // NOVO RELACIONAMENTO (PASSO 1)
+  // ==========================================================
+  ordensServicoRegistradas OrdemServico[] // OS registradas por este Encarregado/Admin
+  // ==========================================================
+}
+
+// --- Modelos Transacionais ---
+
+// Representa um turno de trabalho ou uma viagem
+model Jornada { 
+  id            String    @id @default(cuid())
+  dataInicio    DateTime
+  dataFim       DateTime?
+  kmInicio      Float
+  kmFim         Float?
+  
+  // ADIÇÃO DA PRIORIDADE 3: AUDITORIA POR FOTO
+  fotoInicioUrl String?   // URL da foto do odómetro no início
+  fotoFimUrl    String?   // URL da foto do odómetro no fim
+  
+  observacoes   String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  // Relacionamentos
+  veiculo     Veiculo @relation(fields: [veiculoId], references: [id])
+  veiculoId   String
+
+  operador    User     @relation("OperadorJornada", fields: [operadorId], references: [id])
+  operadorId  String
+
+  encarregado User     @relation("EncarregadoJornada", fields: [encarregadoId], references: [id])
+  encarregadoId String
+}
+
+// Representa o evento de abastecimento como um todo (o "cabeçalho" da nota).
+model Abastecimento {
+  id                String   @id @default(cuid())
+  dataHora          DateTime
+  kmOdometro        Float
+  custoTotal        Float
+  placaCartaoUsado  String?
+  
+  // ADIÇÃO DOS CAMPOS DO FORMULÁRIO (FR0026)
+  observacoes       String?
+  justificativa     String?
+  
+  // CAMPO DA NOTA FISCAL (CONFORME SOLICITADO)
+  fotoNotaFiscalUrl String ?
+  
+  createdAt         DateTime @default(now())
+
+  // Relacionamentos
+  veiculo     Veiculo @relation(fields: [veiculoId], references: [id])
+  veiculoId   String // Veículo que FOI abastecido
+
+  operador    User     @relation(fields: [operadorId], references: [id])
+  operadorId  String
+
+  fornecedor  Fornecedor @relation(fields: [fornecedorId], references: [id])
+  fornecedorId String
+
+  // Um abastecimento pode conter múltiplos itens (Diesel e ARLA).
+  itens       ItemAbastecimento[]
+}
+
+// Representa uma linha de item individual dentro de um abastecimento.
+model ItemAbastecimento {
+  id              String   @id @default(cuid())
+  quantidade      Float // Quantidade em litros, unidades, etc.
+  valorPorUnidade Float
+  valorTotal      Float // Calculado como quantidade * valorPorUnidade.
+  createdAt       DateTime @default(now())
+
+  // Relacionamentos
+  abastecimento   Abastecimento @relation(fields: [abastecimentoId], references: [id])
+  abastecimentoId String
+
+  produto         Produto @relation(fields: [produtoId], references: [id])
+  produtoId       String
+}
+
+// Representa o local onde o abastecimento foi realizado.
+model Fornecedor {
+  id             String   @id @default(cuid())
+  nome           String   @unique // Ex: "POSTO QUARTO DE MILHA LTDA"
+  cnpj           String?  @unique
+  createdAt      DateTime @default(now())
+
+  // Relacionamentos
+  abastecimentos Abastecimento[]
+  // ==========================================================
+  // NOVO RELACIONAMENTO (PASSO 1)
+  // ==========================================================
+  ordensServico  OrdemServico[] // Oficina/Loja que realizou o serviço
+  // ==========================================================
+}
+
+
+// ==========================================================
+// INÍCIO DOS NOVOS MODELOS (PASSO 1): MÓDULO DE MANUTENÇÃO
+// ==========================================================
+
+// Representa o registro de uma manutenção (cabeçalho da OS)
+model OrdemServico {
+  id          String   @id @default(cuid())
+  data        DateTime // Data que o serviço foi realizado
+  kmAtual     Float    // KM do veículo na data do serviço
+  custoTotal  Float    // Custo total da OS
+  tipo        TipoManutencao // Preventiva ou Corretiva
+  observacoes String?
+  fotoComprovanteUrl String?
+  createdAt   DateTime @default(now())
+
+  // Relacionamentos
+  veiculo     Veiculo @relation(fields: [veiculoId], references: [id])
+  veiculoId   String
+
+  // Oficina/Loja (reutilizando o Fornecedor)
+  fornecedor  Fornecedor @relation(fields: [fornecedorId], references: [id])
+  fornecedorId String 
+  
+  // Usuário que registrou (Encarregado/Admin)
+  encarregado User     @relation(fields: [encarregadoId], references: [id])
+  encarregadoId String
+
+  // Itens/serviços realizados
+  itens       ItemOrdemServico[]
+}
+
+// Representa um item/serviço dentro de uma Ordem de Serviço
+model ItemOrdemServico {
+  id              String   @id @default(cuid())
+  quantidade      Float
+  valorPorUnidade Float
+  valorTotal      Float
+  
+  // Relacionamentos
+  ordemServico    OrdemServico @relation(fields: [ordemServicoId], references: [id])
+  ordemServicoId  String
+
+  // Produto/Serviço (reutilizando o Produto)
+  produto         Produto @relation(fields: [produtoId], references: [id])
+  produtoId       String 
+}
+
+// Define uma regra de manutenção preventiva para um veículo (Ex: a cada 20.000 KM)
+model PlanoManutencao {
+  id            String   @id @default(cuid())
+  descricao     String   // Ex: "Revisão Geral 20.000km", "Troca de Óleo"
+  tipoIntervalo TipoIntervaloManutencao // Define se é por KM ou por TEMPO (meses)
+  valorIntervalo Float   // Ex: 20000 (se KM) ou 6 (se TEMPO)
+  
+  // Campos para controle de alerta (serão atualizados pela API)
+  kmProximaManutencao   Float?    // KM que a próxima revisão deve ocorrer
+  dataProximaManutencao DateTime? // Data que a próxima revisão deve ocorrer
+
+  // Relacionamento
+  veiculo     Veiculo @relation(fields: [veiculoId], references: [id])
+  veiculoId   String
+}
+// ==========================================================
+// FIM DOS NOVOS MODELOS (PASSO 1)
+// ==========================================================
+
+
+// --- Enums para vocabulários controlados ---
+
+// Define os papéis de usuário possíveis no sistema.
+enum UserRole {
+  OPERADOR
+  ENCARREGADO
+  ADMIN
+}
+
+// Classifica os produtos para permitir cálculos corretos.
+enum TipoProduto {
+  COMBUSTIVEL // Ex: Diesel S10
+  ADITIVO     // Ex: ARLA 32
+  SERVICO     // <-- USADO NA MANUTENÇÃO (Ex: Troca de Óleo)
+  OUTRO       // <-- USADO NA MANUTENÇÃO (Ex: Pneu, Filtro de Ar)
+}
+
+// Define os tipos de combustível primário que um veículo pode utilizar.
+enum TipoCombustivel {
+  DIESEL_S10
+  GASOLINA_COMUM
+  ETANOL
+  GNV
+}
+
+// ==========================================================
+// NOVOS ENUMS (PASSO 1)
+// ==========================================================
+enum TipoManutencao {
+  PREVENTIVA
+  CORRETIVA
+  LAVAGEM
+}
+
+enum TipoIntervaloManutencao {
+  KM
+  TEMPO // Para controle em meses
+}
+// ==========================================================
