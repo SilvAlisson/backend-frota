@@ -28,6 +28,7 @@ const port = 3001;
 // Middlewares Globais
 app.use(express.json());
 
+
 // ================== CONFIGURAÇÃO DE CORS (PRODUÇÃO) ==================
 // Lista de URLs que podem fazer pedidos à sua API
 const whiteList = [
