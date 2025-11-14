@@ -1,6 +1,3 @@
-// frontend/src/index.ts
-// ATUALIZADO COM CORREÇÕES DE SEGURANÇA (ROLE) E INTEGRIDADE (KM LÓGICO)
-
 import express, { Request, Response, NextFunction } from 'express';
 import { Prisma, PrismaClient, TipoProduto } from '@prisma/client';
 import bcrypt from 'bcrypt';
@@ -32,9 +29,8 @@ app.use(express.json());
 // ================== CONFIGURAÇÃO DE CORS (PRODUÇÃO) ==================
 // Lista de URLs que podem fazer pedidos à sua API
 const whiteList = [
-  'http://localhost:5173', // O seu frontend em modo 'dev'
-  // Quando tivermos a URL do Vercel (Passo 3), vamos adicioná-la aqui
-  // ex: 'https://frota-klin.vercel.app' 
+  'http://localhost:5173',
+  'https://frontend-frota-2l0kp210m-alissons-projects-e136c5ab.vercel.app'
 ];
 
 app.use(cors({
