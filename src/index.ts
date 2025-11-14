@@ -30,7 +30,8 @@ app.use(express.json());
 // Lista de URLs que podem fazer pedidos à sua API
 const whiteList = [
   'http://localhost:5173',
-  'https://frontend-frota-2l0kp210m-alissons-projects-e136c5ab.vercel.app'
+  'https://frontend-frota-2l0kp210m-alissons-projects-e136c5ab.vercel.app',
+  'https://frontend-frota-ioc2w8xrs-alissons-projects-e136c5ab.vercel.app/'
 ];
 
 app.use(cors({
