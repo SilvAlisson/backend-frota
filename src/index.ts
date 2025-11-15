@@ -459,6 +459,35 @@ app.get('/api/veiculo/:veiculoId/abastecimentos', authenticateToken, async (req:
   }
 });
 
+// ROTA PARA HISTÓRICO DE ABASTECIMENTOS (Admin/Encarregado)
+app.get('/api/abastecimentos/recentes', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
+  if (req.user?.role !== 'ADMIN' && req.user?.role !== 'ENCARREGADO') {
+    return res.status(403).json({ error: 'Acesso não autorizado.' });
+  }
+
+  try {
+    const recentes = await prisma.abastecimento.findMany({
+      take: 50, // Limita aos 50 mais recentes
+      orderBy: { dataHora: 'desc' },
+      include: {
+        veiculo: { select: { placa: true, modelo: true } },
+        operador: { select: { nome: true } },
+        fornecedor: { select: { nome: true } },
+        itens: {
+          include: {
+            produto: { select: { nome: true, tipo: true } }
+          }
+        }
+      }
+    });
+    res.status(200).json(recentes);
+  } catch (error) {
+    console.error("Erro GET /api/abastecimentos/recentes:", error);
+    res.status(500).json({ error: 'Erro ao buscar histórico de abastecimentos.' });
+  }
+});
+
+
 // --- MANUTENÇÃO (ORDEM DE SERVIÇO) ---
 app.post('/api/ordem-servico', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
   if (req.user?.role !== 'ADMIN' && req.user?.role !== 'ENCARREGADO') {
@@ -548,6 +577,36 @@ app.post('/api/ordem-servico', authenticateToken, async (req: AuthenticatedReque
     res.status(500).json({ error: 'Erro ao registrar Ordem de Serviço' });
   }
 });
+
+// <-- MUDANÇA: INÍCIO DA NOVA ROTA -->
+// ROTA PARA HISTÓRICO DE MANUTENÇÕES (Admin/Encarregado)
+app.get('/api/ordens-servico/recentes', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
+  if (req.user?.role !== 'ADMIN' && req.user?.role !== 'ENCARREGADO') {
+    return res.status(403).json({ error: 'Acesso não autorizado.' });
+  }
+
+  try {
+    const recentes = await prisma.ordemServico.findMany({
+      take: 50, // Limita aos 50 mais recentes
+      orderBy: { data: 'desc' },
+      include: {
+        veiculo: { select: { placa: true, modelo: true } },
+        encarregado: { select: { nome: true } }, // Quem registou
+        fornecedor: { select: { nome: true } }, // Oficina/Lava-rápido
+        itens: {
+          include: {
+            produto: { select: { nome: true } }
+          }
+        }
+      }
+    });
+    res.status(200).json(recentes);
+  } catch (error) {
+    console.error("Erro GET /api/ordens-servico/recentes:", error);
+    res.status(500).json({ error: 'Erro ao buscar histórico de manutenções.' });
+  }
+});
+// <-- MUDANÇA: FIM DA NOVA ROTA -->
 
 
 // --- JORNADAS ---
