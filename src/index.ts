@@ -487,6 +487,43 @@ app.get('/api/abastecimentos/recentes', authenticateToken, async (req: Authentic
   }
 });
 
+// ROTA PARA DELETAR UM ABASTECIMENTO (Apenas Admin)
+app.delete('/api/abastecimento/:id', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
+  // 1. Autorização (ESTRITA)
+  if (req.user?.role !== 'ADMIN') {
+    return res.status(403).json({ error: 'Acesso não autorizado. Apenas Admins podem deletar registos.' });
+  }
+
+  const { id } = req.params;
+  if (!id) {
+    return res.status(400).json({ error: 'ID do abastecimento não fornecido.' });
+  }
+
+  try {
+    // 2. Executar em transação para garantir que os itens e o registo principal sejam removidos
+    const deleteItens = prisma.itemAbastecimento.deleteMany({
+      where: { abastecimentoId: id },
+    });
+
+    const deleteAbastecimento = prisma.abastecimento.delete({
+      where: { id: id },
+    });
+
+    await prisma.$transaction([deleteItens, deleteAbastecimento]);
+
+    console.log(`Abastecimento ${id} e seus itens foram deletados pelo Admin ${req.user.userId}`);
+    res.status(200).json({ message: 'Registo de abastecimento removido com sucesso.' });
+
+  } catch (error) {
+    console.error(`Erro ao deletar abastecimento ${id}:`, error);
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {
+      return res.status(404).json({ error: 'Registo não encontrado. Pode já ter sido removido.' });
+    }
+    res.status(500).json({ error: 'Erro interno ao tentar remover o registo.' });
+  }
+});
+
+
 
 // --- MANUTENÇÃO (ORDEM DE SERVIÇO) ---
 app.post('/api/ordem-servico', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
@@ -578,7 +615,6 @@ app.post('/api/ordem-servico', authenticateToken, async (req: AuthenticatedReque
   }
 });
 
-// <-- MUDANÇA: INÍCIO DA NOVA ROTA -->
 // ROTA PARA HISTÓRICO DE MANUTENÇÕES (Admin/Encarregado)
 app.get('/api/ordens-servico/recentes', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
   if (req.user?.role !== 'ADMIN' && req.user?.role !== 'ENCARREGADO') {
@@ -606,7 +642,44 @@ app.get('/api/ordens-servico/recentes', authenticateToken, async (req: Authentic
     res.status(500).json({ error: 'Erro ao buscar histórico de manutenções.' });
   }
 });
-// <-- MUDANÇA: FIM DA NOVA ROTA -->
+
+// <-- MUDANÇA: INÍCIO DA NOVA ROTA DELETE -->
+// ROTA PARA DELETAR UMA ORDEM DE SERVIÇO (Apenas Admin)
+app.delete('/api/ordem-servico/:id', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
+  // 1. Autorização (ESTRITA)
+  if (req.user?.role !== 'ADMIN') {
+    return res.status(403).json({ error: 'Acesso não autorizado. Apenas Admins podem deletar registos.' });
+  }
+
+  const { id } = req.params;
+  if (!id) {
+    return res.status(400).json({ error: 'ID da Ordem de Serviço não fornecido.' });
+  }
+
+  try {
+    // 2. Executar em transação
+    const deleteItens = prisma.itemOrdemServico.deleteMany({
+      where: { ordemServicoId: id },
+    });
+
+    const deleteOrdemServico = prisma.ordemServico.delete({
+      where: { id: id },
+    });
+
+    await prisma.$transaction([deleteItens, deleteOrdemServico]);
+
+    console.log(`Ordem de Serviço ${id} e seus itens foram deletados pelo Admin ${req.user.userId}`);
+    res.status(200).json({ message: 'Registo de manutenção removido com sucesso.' });
+
+  } catch (error) {
+    console.error(`Erro ao deletar Ordem de Serviço ${id}:`, error);
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {
+      return res.status(404).json({ error: 'Registo não encontrado. Pode já ter sido removido.' });
+    }
+    res.status(500).json({ error: 'Erro interno ao tentar remover o registo.' });
+  }
+});
+// <-- MUDANÇA: FIM DA NOVA ROTA DELETE -->
 
 
 // --- JORNADAS ---
