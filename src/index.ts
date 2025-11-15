@@ -500,7 +500,7 @@ app.delete('/api/abastecimento/:id', authenticateToken, async (req: Authenticate
   }
 
   try {
-    // 2. Executar em transação para garantir que os itens e o registo principal sejam removidos
+    // 2. Executar em transação
     const deleteItens = prisma.itemAbastecimento.deleteMany({
       where: { abastecimentoId: id },
     });
@@ -936,7 +936,7 @@ app.get('/api/relatorio/consumo/:veiculoId', authenticateToken, async (req: Auth
   try {
     const { veiculoId } = req.params;
     if (!veiculoId) {
-      return res.status(400).json({ error: 'veiculoId não fornecido.' });
+      return res.status(400).json({ error: 'veiculoId não foi fornecido.' });
     }
     const abastecimentos = await prisma.abastecimento.findMany({
       where: { veiculoId: veiculoId },
@@ -994,7 +994,7 @@ app.get('/api/relatorio/custo/:veiculoId', authenticateToken, async (req: Authen
   try {
     const { veiculoId } = req.params;
     if (!veiculoId) {
-      return res.status(400).json({ error: 'veiculoId não fornecido.' });
+      return res.status(400).json({ error: 'veiculoId não foi fornecido.' });
     }
     const abastecimentos = await prisma.abastecimento.findMany({
       where: { veiculoId: veiculoId },
