@@ -288,6 +288,89 @@ app.get('/api/users', authenticateToken, async (req: AuthenticatedRequest, res: 
   }
 });
 
+// Rota para EDITAR um usuário (Admin)
+app.put('/api/user/:id', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
+  // 1. Autorização
+  if (req.user?.role !== 'ADMIN') {
+    return res.status(403).json({ error: 'Acesso não autorizado.' });
+  }
+
+  const { id } = req.params;
+  const { nome, email, matricula, role, password } = req.body;
+
+  if (!nome || !email || !role) {
+    return res.status(400).json({ error: 'Nome, email e função são obrigatórios.' });
+  }
+
+  // 2. Preparar os dados
+  const dataToUpdate: any = {
+    nome,
+    email,
+    matricula: matricula || null,
+    role,
+  };
+
+  // 3. Opcionalmente atualizar a senha (se uma nova foi fornecida)
+  if (password && password.trim() !== '') {
+    const salt = await bcrypt.genSalt(10);
+    dataToUpdate.password = await bcrypt.hash(password, salt);
+    console.log(`Admin ${req.user.userId} está a ATUALIZAR A SENHA do usuário ${id}.`);
+  }
+
+  try {
+    const updatedUser = await prisma.user.update({
+      where: { id: id },
+      data: dataToUpdate,
+      select: { id: true, nome: true, email: true, role: true, matricula: true }, // Retorna sem a senha
+    });
+    res.status(200).json(updatedUser);
+  } catch (error) {
+    console.error(`Erro ao editar usuário ${id}:`, error);
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+      const target = (error.meta?.target as string[])?.join(', ');
+      return res.status(409).json({ error: `Já existe um usuário com este ${target}.` });
+    }
+     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {
+        return res.status(404).json({ error: 'Utilizador não encontrado.' });
+    }
+    res.status(500).json({ error: 'Erro interno ao atualizar usuário.' });
+  }
+});
+
+// Rota para REMOVER um usuário (Admin)
+app.delete('/api/user/:id', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
+  // 1. Autorização
+  if (req.user?.role !== 'ADMIN') {
+    return res.status(403).json({ error: 'Acesso não autorizado.' });
+  }
+
+  const { id } = req.params;
+
+  // 2. Proteção: Não permitir que o Admin se auto-delete
+  if (req.user?.userId === id) {
+    return res.status(400).json({ error: 'Não é permitido remover o seu próprio utilizador.' });
+  }
+
+  try {
+    await prisma.user.delete({
+      where: { id: id },
+    });
+    console.log(`Usuário ${id} removido pelo Admin ${req.user.userId}.`);
+    res.status(200).json({ message: 'Utilizador removido com sucesso.' });
+  } catch (error) {
+    console.error(`Erro ao remover usuário ${id}:`, error);
+    
+    // 3. Capturar erro de Chave Estrangeira (o utilizador tem registos)
+    if (error instanceof Prisma.PrismaClientKnownRequestError && (error.code === 'P2003' || error.code === 'P2014')) {
+      return res.status(409).json({ error: 'Este utilizador não pode ser removido pois possui jornadas, abastecimentos ou manutenções registadas. (Erro de integridade).' });
+    }
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {
+        return res.status(404).json({ error: 'Utilizador não encontrado.' });
+    }
+    res.status(500).json({ error: 'Erro interno ao remover utilizador.' });
+  }
+});
+
 // --- VEÍCULOS ---
 app.post('/api/veiculo', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
   // ================== (AUTORIZAÇÃO) ==================
