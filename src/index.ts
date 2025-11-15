@@ -3,9 +3,7 @@ import { Prisma, PrismaClient, TipoProduto } from '@prisma/client';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import cors from 'cors';
-import multer from 'multer';
-import path from 'path';
-import fs from 'fs';
+
 
 // ================== FUNÇÃO HELPER ==================
 // Adiciona dias a uma data (para calcular o limite do alerta)
@@ -44,36 +42,6 @@ app.use(cors({
     }
   }
 }));
-
-// --- (INÍCIO DA CONFIGURAÇÃO DE UPLOAD) ---
-
-// Define o caminho absoluto para a pasta 'uploads'
-// __dirname é 'backend/src', '..' sobe para 'backend/', e 'uploads' entra na pasta
-const uploadsDir = path.join(__dirname, '..', 'uploads');
-
-// 1. Cria a pasta 'uploads' se ela não existir
-if (!fs.existsSync(uploadsDir)) {
-  fs.mkdirSync(uploadsDir, { recursive: true });
-}
-
-// 2. Serve os ficheiros da pasta 'uploads' estaticamente
-// (Ex: http://localhost:3001/uploads/nome_do_ficheiro.jpg)
-app.use('/uploads', express.static(uploadsDir));
-
-// 3. Configura o Multer (onde e como guardar os ficheiros)
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, uploadsDir); // Guarda os ficheiros na pasta 'uploads/'
-  },
-  filename: (req, file, cb) => {
-    // Cria um nome de ficheiro único (Timestamp + nome original)
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    cb(null, 'foto-' + uniqueSuffix + path.extname(file.originalname));
-  }
-});
-const upload = multer({ storage: storage });
-
-
 
 // --- DEFINIÇÕES DE AUTENTICAÇÃO ---
 interface AuthenticatedRequest extends Request {
@@ -235,18 +203,6 @@ app.post('/api/auth/login', async (req: Request, res: Response) => {
 /* =========================================
  * ROTAS PROTEGIDAS
  * ========================================= */
-
-// --- (INÍCIO DA NOVA ROTA DE UPLOAD) ---
-app.post('/api/upload', authenticateToken, upload.single('fotoOdometro'), (req: AuthenticatedRequest, res: Response) => {
-  if (!req.file) {
-    return res.status(400).json({ error: 'Nenhum ficheiro enviado.' });
-  }
-  
-  const fileUrl = `/uploads/${req.file.filename}`;
-  console.log(`Ficheiro ${req.file.filename} guardado. URL: ${fileUrl}`);
-  res.status(201).json({ url: fileUrl });
-});
-
 
 // --- PRODUTOS ---
 app.post('/api/produto', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
