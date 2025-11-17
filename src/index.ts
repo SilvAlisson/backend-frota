@@ -913,14 +913,45 @@ app.get('/api/veiculo/:veiculoId/abastecimentos', authenticateToken, async (req:
 });
 
 // ROTA PARA HISTÓRICO DE ABASTECIMENTOS (Admin/Encarregado)
+// ROTA PARA HISTÓRICO DE ABASTECIMENTOS (Admin/Encarregado)
 app.get('/api/abastecimentos/recentes', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
   if (req.user?.role !== 'ADMIN' && req.user?.role !== 'ENCARREGADO') {
     return res.status(403).json({ error: 'Acesso não autorizado.' });
   }
 
   try {
+    const { dataInicio, dataFim, veiculoId } = req.query;
+
+    // Construção dinâmica do 'where'
+    const where: Prisma.AbastecimentoWhereInput = {};
+
+    // ================== CORREÇÃO AQUI ==================
+    // 1. Criar um objeto de filtro de data separado
+    const dateFilter: Prisma.DateTimeFilter = {};
+    
+    if (dataInicio && typeof dataInicio === 'string') {
+      dateFilter.gte = new Date(dataInicio); // Linha 928 corrigida
+    }
+    if (dataFim && typeof dataFim === 'string') {
+      // Adiciona 1 dia para incluir o dia final inteiro (até 23:59:59)
+      const dataFimDate = new Date(dataFim);
+      dataFimDate.setDate(dataFimDate.getDate() + 1);
+      dateFilter.lt = dataFimDate; // Linha 934 corrigida
+    }
+    
+    // 2. Atribuir o filtro ao 'where' APENAS se ele não estiver vazio
+    if (Object.keys(dateFilter).length > 0) {
+      where.dataHora = dateFilter;
+    }
+    // ================== FIM DA CORREÇÃO ==================
+
+    if (veiculoId && typeof veiculoId === 'string') {
+      where.veiculoId = veiculoId;
+    }
+
     const recentes = await prisma.abastecimento.findMany({
-      take: 50, // Limita aos 50 mais recentes
+      where: where, // Usa o filtro dinâmico
+      take: 50, // Limita aos 50 mais recentes (do filtro)
       orderBy: { dataHora: 'desc' },
       include: {
         veiculo: { select: { placa: true, modelo: true } },
@@ -1068,15 +1099,41 @@ app.post('/api/ordem-servico', authenticateToken, async (req: AuthenticatedReque
   }
 });
 
-// ROTA PARA HISTÓRICO DE MANUTENÇÕES (Admin/Encarregado)
 app.get('/api/ordens-servico/recentes', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
   if (req.user?.role !== 'ADMIN' && req.user?.role !== 'ENCARREGADO') {
     return res.status(403).json({ error: 'Acesso não autorizado.' });
   }
 
   try {
+    const { dataInicio, dataFim, veiculoId } = req.query;
+
+    // Construção dinâmica do 'where'
+    const where: Prisma.OrdemServicoWhereInput = {};
+
+    // ================== CORREÇÃO AQUI ==================
+    // 1. Criar um objeto de filtro de data separado
+    const dateFilter: Prisma.DateTimeFilter = {};
+
+    if (dataInicio && typeof dataInicio === 'string') {
+      dateFilter.gte = new Date(dataInicio); // Linha 1103 corrigida
+    }
+    if (dataFim && typeof dataFim === 'string') {
+      const dataFimDate = new Date(dataFim);
+      dataFimDate.setDate(dataFimDate.getDate() + 1);
+      dateFilter.lt = dataFimDate; // Linha 1108 corrigida
+    }
+
+    // 2. Atribuir o filtro ao 'where' APENAS se ele não estiver vazio
+    if (Object.keys(dateFilter).length > 0) {
+      where.data = dateFilter;
+    }
+    if (veiculoId && typeof veiculoId === 'string') {
+      where.veiculoId = veiculoId;
+    }
+
     const recentes = await prisma.ordemServico.findMany({
-      take: 50, // Limita aos 50 mais recentes
+      where: where, // Usa o filtro dinâmico
+      take: 50, // Limita aos 50 mais recentes (do filtro)
       orderBy: { data: 'desc' },
       include: {
         veiculo: { select: { placa: true, modelo: true } },
