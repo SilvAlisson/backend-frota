@@ -13,6 +13,15 @@ const addDays = (date: Date, days: number): Date => {
   return result;
 };
 
+// Formata um objeto Date para uma string 'YYYY-MM-DD' para inputs HTML
+const formatDateToInput = (date: Date | null | undefined): string | null => {
+  if (!date) return null;
+  // Garante que a data seja tratada como UTC para evitar off-by-one de timezone
+  const d = new Date(date);
+  const dataCorrigida = new Date(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
+  return dataCorrigida.toISOString().split('T')[0] as string;
+};
+
 // Instancia o Prisma Client
 const prisma = new PrismaClient();
 
@@ -240,6 +249,105 @@ app.get('/api/produtos', authenticateToken, async (req: AuthenticatedRequest, re
   }
 });
 
+// ================== NOVA ROTA (GET by ID) ==================
+app.get('/api/produto/:id', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
+  if (req.user?.role !== 'ADMIN') {
+    return res.status(403).json({ error: 'Acesso não autorizado.' });
+  }
+  
+  const { id } = req.params;
+  if (typeof id !== 'string') {
+    return res.status(400).json({ error: 'ID do produto é inválido ou não fornecido.' });
+  }
+
+  try {
+    const produto = await prisma.produto.findUnique({
+      where: { id: id },
+    });
+
+    if (!produto) {
+      return res.status(404).json({ error: 'Produto não encontrado.' });
+    }
+    
+    res.status(200).json(produto);
+  } catch (error) {
+    console.error(`Erro GET /api/produto/${id}:`, error);
+    res.status(500).json({ error: 'Erro ao buscar dados do produto.' });
+  }
+});
+
+// ================== ROTA PUT ==================
+app.put('/api/produto/:id', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
+  if (req.user?.role !== 'ADMIN') {
+    return res.status(403).json({ error: 'Acesso não autorizado. Apenas Admins podem editar produtos.' });
+  }
+
+  const { id } = req.params;
+  if (typeof id !== 'string') {
+    return res.status(400).json({ error: 'ID do produto é inválido ou não fornecido.' });
+  }
+
+  try {
+    const { nome, tipo, unidadeMedida } = req.body;
+
+    if (!nome || !tipo) {
+      return res.status(400).json({ error: 'Nome e Tipo são obrigatórios' });
+    }
+    if (!(tipo in TipoProduto)) {
+      return res.status(400).json({ error: `Tipo inválido. Valores aceitos: ${Object.values(TipoProduto).join(', ')}`});
+    }
+
+    const updatedProduto = await prisma.produto.update({
+      where: { id: id },
+      data: {
+        nome,
+        tipo,
+        unidadeMedida: unidadeMedida || 'Litro'
+      },
+    });
+    res.status(200).json(updatedProduto);
+  } catch (error) {
+    console.error(`Erro PUT /api/produto/${id}:`, error);
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+      return res.status(409).json({ error: `Um produto com o nome '${req.body.nome}' já existe.` });
+    }
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {
+      return res.status(404).json({ error: 'Produto não encontrado para atualização.' });
+    }
+    res.status(500).json({ error: 'Erro ao atualizar produto.' });
+  }
+});
+
+// ================== ROTA DELETE ==================
+app.delete('/api/produto/:id', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
+  if (req.user?.role !== 'ADMIN') {
+    return res.status(403).json({ error: 'Acesso não autorizado. Apenas Admins podem remover produtos.' });
+  }
+
+  const { id } = req.params;
+  if (typeof id !== 'string') {
+    return res.status(400).json({ error: 'ID do produto é inválido ou não fornecido.' });
+  }
+
+  try {
+    await prisma.produto.delete({
+      where: { id: id },
+    });
+    console.log(`Produto ${id} removido pelo Admin ${req.user.userId}.`);
+    res.status(200).json({ message: 'Produto removido com sucesso.' });
+  } catch (error) {
+    console.error(`Erro DELETE /api/produto/${id}:`, error);
+    // Trata erro se o produto tiver registos (itens_abastecimento, itens_os)
+    if (error instanceof Prisma.PrismaClientKnownRequestError && (error.code === 'P2003' || error.code === 'P2014')) {
+      return res.status(409).json({ error: 'Este produto não pode ser removido pois está a ser utilizado em abastecimentos ou manutenções.' });
+    }
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {
+      return res.status(404).json({ error: 'Produto não encontrado.' });
+    }
+    res.status(500).json({ error: 'Erro ao remover produto.' });
+  }
+});
+
 // --- FORNECEDORES ---
 app.post('/api/fornecedor', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
   // ================== (AUTORIZAÇÃO) ==================
@@ -274,6 +382,102 @@ app.get('/api/fornecedores', authenticateToken, async (req: AuthenticatedRequest
   }
 });
 
+// ================== NOVA ROTA (GET by ID) ==================
+app.get('/api/fornecedor/:id', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
+  if (req.user?.role !== 'ADMIN') {
+    return res.status(403).json({ error: 'Acesso não autorizado.' });
+  }
+  
+  const { id } = req.params;
+  if (typeof id !== 'string') {
+    return res.status(400).json({ error: 'ID do fornecedor é inválido ou não fornecido.' });
+  }
+
+  try {
+    const fornecedor = await prisma.fornecedor.findUnique({
+      where: { id: id },
+    });
+
+    if (!fornecedor) {
+      return res.status(404).json({ error: 'Fornecedor não encontrado.' });
+    }
+    
+    res.status(200).json(fornecedor);
+  } catch (error) {
+    console.error(`Erro GET /api/fornecedor/${id}:`, error);
+    res.status(500).json({ error: 'Erro ao buscar dados do fornecedor.' });
+  }
+});
+
+// ================== ROTA PUT ==================
+app.put('/api/fornecedor/:id', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
+  if (req.user?.role !== 'ADMIN') {
+    return res.status(403).json({ error: 'Acesso não autorizado. Apenas Admins podem editar fornecedores.' });
+  }
+
+  const { id } = req.params;
+  if (typeof id !== 'string') {
+    return res.status(400).json({ error: 'ID do fornecedor é inválido ou não fornecido.' });
+  }
+
+  try {
+    const { nome, cnpj } = req.body;
+
+    if (!nome) {
+      return res.status(400).json({ error: 'Nome é obrigatório' });
+    }
+
+    const updatedFornecedor = await prisma.fornecedor.update({
+      where: { id: id },
+      data: {
+        nome,
+        cnpj: cnpj || null
+      },
+    });
+    res.status(200).json(updatedFornecedor);
+  } catch (error) {
+    console.error(`Erro PUT /api/fornecedor/${id}:`, error);
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+       const target = (error.meta?.target as string[])?.join(', ');
+      return res.status(409).json({ error: `Já existe um fornecedor com este ${target}.` });
+    }
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {
+      return res.status(404).json({ error: 'Fornecedor não encontrado para atualização.' });
+    }
+    res.status(500).json({ error: 'Erro ao atualizar fornecedor.' });
+  }
+});
+
+// ================== ROTA DELETE ==================
+app.delete('/api/fornecedor/:id', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
+  if (req.user?.role !== 'ADMIN') {
+    return res.status(403).json({ error: 'Acesso não autorizado. Apenas Admins podem remover fornecedores.' });
+  }
+
+  const { id } = req.params;
+  if (typeof id !== 'string') {
+    return res.status(400).json({ error: 'ID do fornecedor é inválido ou não fornecido.' });
+  }
+
+  try {
+    await prisma.fornecedor.delete({
+      where: { id: id },
+    });
+    console.log(`Fornecedor ${id} removido pelo Admin ${req.user.userId}.`);
+    res.status(200).json({ message: 'Fornecedor removido com sucesso.' });
+  } catch (error) {
+    console.error(`Erro DELETE /api/fornecedor/${id}:`, error);
+    // Trata erro se o fornecedor tiver registos (abastecimentos, os)
+    if (error instanceof Prisma.PrismaClientKnownRequestError && (error.code === 'P2003' || error.code === 'P2014')) {
+      return res.status(409).json({ error: 'Este fornecedor não pode ser removido pois está a ser utilizado em abastecimentos ou manutenções.' });
+    }
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {
+      return res.status(404).json({ error: 'Fornecedor não encontrado.' });
+    }
+    res.status(500).json({ error: 'Erro ao remover fornecedor.' });
+  }
+});
+
 // --- USUÁRIOS ---
 app.get('/api/users', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
   try {
@@ -288,6 +492,43 @@ app.get('/api/users', authenticateToken, async (req: AuthenticatedRequest, res: 
   }
 });
 
+// Rota para buscar um usuário específico por ID (Admin)
+app.get('/api/user/:id', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
+  // 1. Autorização
+  if (req.user?.role !== 'ADMIN') {
+    return res.status(403).json({ error: 'Acesso não autorizado.' });
+  }
+
+  const { id } = req.params;
+
+  // ================== CORREÇÃO DO ERRO TS(2375) ==================
+  // Adiciona uma verificação para garantir que 'id' é uma string
+  if (typeof id !== 'string') {
+    return res.status(400).json({ error: 'ID do utilizador é inválido ou não fornecido.' });
+  }
+  // Agora o TypeScript sabe que 'id' é uma string daqui para baixo
+  // ================== FIM DA CORREÇÃO ==================
+
+  try {
+    const user = await prisma.user.findUnique({
+      where: { id: id }, // Erro da linha 302 corrigido
+      // 2. Seleciona os campos seguros (exclui a senha)
+      select: { id: true, nome: true, email: true, role: true, matricula: true },
+    });
+
+    if (!user) {
+      return res.status(404).json({ error: 'Utilizador não encontrado.' });
+    }
+
+    // 3. Retorna os dados do usuário
+    res.status(200).json(user);
+
+  } catch (error) {
+    console.error(`Erro ao buscar usuário ${id}:`, error);
+    res.status(500).json({ error: 'Erro interno ao buscar usuário.' });
+  }
+});
+
 // Rota para EDITAR um usuário (Admin)
 app.put('/api/user/:id', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
   // 1. Autorização
@@ -298,12 +539,19 @@ app.put('/api/user/:id', authenticateToken, async (req: AuthenticatedRequest, re
   const { id } = req.params;
   const { nome, email, matricula, role, password } = req.body;
 
+  // ================== CORREÇÃO DO ERRO TS(2375) ==================
+  if (typeof id !== 'string') {
+    return res.status(400).json({ error: 'ID do utilizador é inválido ou não fornecido.' });
+  }
+  // ================== FIM DA CORREÇÃO ==================
+
   if (!nome || !email || !role) {
     return res.status(400).json({ error: 'Nome, email e função são obrigatórios.' });
   }
 
   // 2. Preparar os dados
   const dataToUpdate: any = {
+  // ... (restante da lógica de preparação de dataToUpdate)
     nome,
     email,
     matricula: matricula || null,
@@ -319,7 +567,7 @@ app.put('/api/user/:id', authenticateToken, async (req: AuthenticatedRequest, re
 
   try {
     const updatedUser = await prisma.user.update({
-      where: { id: id },
+      where: { id: id }, // Erro da linha 351 corrigido
       data: dataToUpdate,
       select: { id: true, nome: true, email: true, role: true, matricula: true }, // Retorna sem a senha
     });
@@ -346,6 +594,10 @@ app.delete('/api/user/:id', authenticateToken, async (req: AuthenticatedRequest,
 
   const { id } = req.params;
 
+  if (typeof id !== 'string') {
+    return res.status(400).json({ error: 'ID do utilizador é inválido ou não fornecido.' });
+  }
+
   // 2. Proteção: Não permitir que o Admin se auto-delete
   if (req.user?.userId === id) {
     return res.status(400).json({ error: 'Não é permitido remover o seu próprio utilizador.' });
@@ -353,11 +605,12 @@ app.delete('/api/user/:id', authenticateToken, async (req: AuthenticatedRequest,
 
   try {
     await prisma.user.delete({
-      where: { id: id },
+      where: { id: id }, // Erro da linha 385 corrigido
     });
     console.log(`Usuário ${id} removido pelo Admin ${req.user.userId}.`);
     res.status(200).json({ message: 'Utilizador removido com sucesso.' });
   } catch (error) {
+  // ... (restante do catch)
     console.error(`Erro ao remover usuário ${id}:`, error);
     
     // 3. Capturar erro de Chave Estrangeira (o utilizador tem registos)
@@ -429,6 +682,123 @@ app.get('/api/veiculos', authenticateToken, async (req: AuthenticatedRequest, re
   }
 });
 
+app.get('/api/veiculo/:id', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
+  if (req.user?.role !== 'ADMIN') {
+    return res.status(403).json({ error: 'Acesso não autorizado.' });
+  }
+  
+  const { id } = req.params;
+  if (typeof id !== 'string') {
+    return res.status(400).json({ error: 'ID do veículo é inválido ou não fornecido.' });
+  }
+
+  try {
+    const veiculo = await prisma.veiculo.findUnique({
+      where: { id: id },
+    });
+
+    if (!veiculo) {
+      return res.status(404).json({ error: 'Veículo não encontrado.' });
+    }
+    
+    // Formata as datas antes de enviar para o frontend
+    const veiculoFormatado = {
+      ...veiculo,
+      vencimentoCiv: formatDateToInput(veiculo.vencimentoCiv),
+      vencimentoCipp: formatDateToInput(veiculo.vencimentoCipp),
+    };
+
+    res.status(200).json(veiculoFormatado);
+  } catch (error) {
+    console.error(`Erro GET /api/veiculo/${id}:`, error);
+    res.status(500).json({ error: 'Erro ao buscar dados do veículo.' });
+  }
+});
+
+// ================== ROTA (PUT) ==================
+app.put('/api/veiculo/:id', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
+  if (req.user?.role !== 'ADMIN') {
+    return res.status(403).json({ error: 'Acesso não autorizado. Apenas Admins podem editar veículos.' });
+  }
+
+  const { id } = req.params;
+  if (typeof id !== 'string') {
+    return res.status(400).json({ error: 'ID do veículo é inválido ou não fornecido.' });
+  }
+
+  try {
+    const {
+      placa,
+      modelo,
+      ano,
+      tipoCombustivel,
+      capacidadeTanque,
+      tipoVeiculo,
+      vencimentoCiv,
+      vencimentoCipp
+    } = req.body;
+
+    if (!placa || !modelo || !ano) {
+      return res.status(400).json({ error: 'Placa, modelo e ano são obrigatórios' });
+    }
+
+    const updatedVeiculo = await prisma.veiculo.update({
+      where: { id: id },
+      data: {
+        placa: placa.toUpperCase(),
+        modelo,
+        ano: parseInt(ano),
+        tipoCombustivel: tipoCombustivel || 'DIESEL_S10',
+        capacidadeTanque: capacidadeTanque ? parseFloat(capacidadeTanque) : null,
+        tipoVeiculo: tipoVeiculo || null,
+        
+        // Converte a string YYYY-MM-DD (ou null) de volta para um objeto Date
+        vencimentoCiv: vencimentoCiv ? new Date(vencimentoCiv) : null,
+        vencimentoCipp: vencimentoCipp ? new Date(vencimentoCipp) : null,
+      },
+    });
+    res.status(200).json(updatedVeiculo);
+  } catch (error) {
+    console.error(`Erro PUT /api/veiculo/${id}:`, error);
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+      return res.status(409).json({ error: `Veículo com placa ${req.body.placa} já existe.` });
+    }
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {
+      return res.status(404).json({ error: 'Veículo não encontrado para atualização.' });
+    }
+    res.status(500).json({ error: 'Erro ao atualizar veículo.' });
+  }
+});
+
+// ================== ROTA DELETE ==================
+app.delete('/api/veiculo/:id', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
+  if (req.user?.role !== 'ADMIN') {
+    return res.status(403).json({ error: 'Acesso não autorizado. Apenas Admins podem remover veículos.' });
+  }
+
+  const { id } = req.params;
+  if (typeof id !== 'string') {
+    return res.status(400).json({ error: 'ID do veículo é inválido ou não fornecido.' });
+  }
+
+  try {
+    await prisma.veiculo.delete({
+      where: { id: id },
+    });
+    console.log(`Veículo ${id} removido pelo Admin ${req.user.userId}.`);
+    res.status(200).json({ message: 'Veículo removido com sucesso.' });
+  } catch (error) {
+    console.error(`Erro DELETE /api/veiculo/${id}:`, error);
+    // Trata erro se o veículo tiver registos (jornadas, abastecimentos, etc)
+    if (error instanceof Prisma.PrismaClientKnownRequestError && (error.code === 'P2003' || error.code === 'P2014')) {
+      return res.status(409).json({ error: 'Este veículo não pode ser removido pois possui registos associados (jornadas, abastecimentos, etc.).' });
+    }
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {
+      return res.status(404).json({ error: 'Veículo não encontrado.' });
+    }
+    res.status(500).json({ error: 'Erro ao remover veículo.' });
+  }
+});
 
 // --- ABASTECIMENTO ---
 app.post('/api/abastecimento', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
