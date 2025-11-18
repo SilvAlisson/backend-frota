@@ -210,7 +210,7 @@ app.post('/api/auth/login', async (req: Request, res: Response) => {
   }
 });
 
-// Rota de Login por Token (QR Code)
+// Rota de Login por Token (QR Code) - PERMANENTE
 app.post('/api/auth/login-token', async (req: Request, res: Response) => {
   const { loginToken } = req.body;
   if (!loginToken) {
@@ -218,35 +218,26 @@ app.post('/api/auth/login-token', async (req: Request, res: Response) => {
   }
 
   try {
-    // 1. Encontra um utilizador com esse token E que não esteja expirado
+    // 1. Encontra um utilizador com esse token.
+    // (Sem verificação de expiração, pois é permanente)
     const user = await prisma.user.findFirst({
       where: {
         loginToken: loginToken,
-        loginTokenExpiresAt: { gt: new Date() } // Verifica se a data de expiração é maior que agora
       }
     });
 
     if (!user) {
-      return res.status(401).json({ error: 'Token inválido ou expirado.' });
+      return res.status(401).json({ error: 'Token inválido ou revogado.' });
     }
 
-    // 2. O Token é válido. Invalida-o imediatamente para que não possa ser re-utilizado
-    await prisma.user.update({
-      where: { id: user.id },
-      data: {
-        loginToken: null,
-        loginTokenExpiresAt: null
-      }
-    });
-
-    // 3. Gera o JWT de sessão normal (igual ao login por email/senha)
+    // 2. Gerar o JWT de sessão normal
     const token = jwt.sign(
       { userId: user.id, role: user.role },
       TOKEN_SECRET,
       { expiresIn: '8h' } 
     );
 
-    // 4. Retorna a sessão completa
+    // 3. Retorna a sessão completa (NÃO apaga o token do banco)
     res.status(200).json({
       message: 'Login por token bem-sucedido!',
       token: token,
@@ -674,9 +665,8 @@ app.delete('/api/user/:id', authenticateToken, async (req: AuthenticatedRequest,
   }
 });
 
-// Rota para GERAR um token de login (QR Code) para um Operador
+// Rota para GERAR um token de login (QR Code) PERMANENTE
 app.post('/api/user/:id/generate-login-token', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
-  // Apenas Admin ou Encarregado podem gerar tokens
   if (req.user?.role !== 'ADMIN' && req.user?.role !== 'ENCARREGADO') {
     return res.status(403).json({ error: 'Acesso não autorizado.' });
   }
@@ -687,13 +677,10 @@ app.post('/api/user/:id/generate-login-token', authenticateToken, async (req: Au
   }
 
   try {
-    // 1. Gerar um token aleatório e seguro
+    // 1. Gerar um token aleatório
     const token = crypto.randomBytes(32).toString('hex');
-    // 2. Definir expiração (ex: 5 minutos a partir de agora)
-    const expires = new Date(Date.now() + 5 * 60 * 1000); // 5 minutos
-
-    // 3. Atualizar o utilizador no banco de dados com o token e a expiração
-    // Apenas permite gerar para Operadores
+    
+    // 2. Atualizar o utilizador com o token (SEM data de expiração)
     const user = await prisma.user.update({
       where: { 
         id: id,
@@ -701,25 +688,51 @@ app.post('/api/user/:id/generate-login-token', authenticateToken, async (req: Au
       },
       data: {
         loginToken: token,
-        loginTokenExpiresAt: expires,
+        loginTokenExpiresAt: null, // Garante que é nulo (permanente)
       },
-      select: { id: true, nome: true, loginToken: true } // Retorna o token
+      select: { id: true, nome: true, loginToken: true }
     });
 
-    if (!user) {
-      return res.status(404).json({ error: 'Operador não encontrado.' });
-    }
-
-    // 4. Envia o token gerado para o frontend (para este o transformar em QR Code)
     res.status(200).json({ loginToken: user.loginToken });
   
   } catch (error) {
     console.error("Erro ao gerar token de login:", error);
-    // Trata caso o ID do utilizador não exista
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {
       return res.status(404).json({ error: 'Operador não encontrado.' });
     }
     res.status(500).json({ error: 'Erro interno ao gerar token.' });
+  }
+});
+
+// Rota para REVOGAR (Excluir) um token manualmente
+app.put('/api/user/:id/revoke-login-token', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
+  if (req.user?.role !== 'ADMIN' && req.user?.role !== 'ENCARREGADO') {
+    return res.status(403).json({ error: 'Acesso não autorizado.' });
+  }
+  
+  const { id } = req.params;
+  if (typeof id !== 'string') {
+    return res.status(400).json({ error: 'ID do utilizador inválido.' });
+  }
+
+  try {
+    const user = await prisma.user.update({
+      where: { id: id, role: 'OPERADOR' },
+      data: {
+        loginToken: null, // Remove o token
+        loginTokenExpiresAt: null,
+      },
+      select: { id: true, nome: true }
+    });
+
+    res.status(200).json({ message: `Token de login revogado com sucesso para ${user.nome}.` });
+  
+  } catch (error) {
+    console.error("Erro ao revogar token:", error);
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {
+      return res.status(404).json({ error: 'Operador não encontrado.' });
+    }
+    res.status(500).json({ error: 'Erro interno ao revogar token.' });
   }
 });
 
