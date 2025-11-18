@@ -8,8 +8,8 @@ generator client {
 // Configuração da fonte de dados (nosso Docker/PostgreSQL)
 datasource db {
   provider  = "postgresql"
-  url       = env("DATABASE_URL") // Conexão com PGBouncer (Porta 6543) para o site
-  directUrl = env("DIRECT_URL")   // <--- ADICIONE ESTA LINHA (Porta 5432) para migrações
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL") 
 }
 
 // --- Modelos Centrais ---
