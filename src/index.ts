@@ -40,11 +40,13 @@ const whiteList = [
   'http://localhost:5173',
   'https://frontend-frota-2l0kp210m-alissons-projects-e136c5ab.vercel.app',
   'https://frontend-frota-ioc2w8xrs-alissons-projects-e136c5ab.vercel.app',
-  'https://frontend-frota.vercel.app'
+  'https://frontend-frota.vercel.app',
+
 ];
 
 app.use(cors({
   origin: function (origin, callback) {
+    // !origin permite requisições que não têm origem (ex: Postman ou aplicativos mobile nativos)
     if (!origin || whiteList.indexOf(origin) !== -1) {
       callback(null, true);
     } else {
