@@ -65,23 +65,26 @@ model Produto {
 
 // Representa um usuário (Operador, Encarregado)
 model User {
-  id            String   @id @default(cuid())
-  nome          String
-  matricula     String?  @unique
-  role          UserRole @default(OPERADOR) // Define as permissões
-  email         String   @unique
-  password      String // Senha deve ser armazenada como um hash
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  id            String   @id @default(cuid())
+  nome          String
+  matricula     String?  @unique
+  role          UserRole @default(OPERADOR) // Define as permissões
+  email         String   @unique
+  password      String // Senha deve ser armazenada como um hash
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
-  // Relacionamentos
-  jornadasComoOperador    Jornada[]       @relation("OperadorJornada")
-  jornadasComoEncarregado Jornada[]       @relation("EncarregadoJornada")
-  abastecimentos          Abastecimento[]
+  // Relacionamentos
+  jornadasComoOperador    Jornada[]       @relation("OperadorJornada")
+  jornadasComoEncarregado Jornada[]       @relation("EncarregadoJornada")
+  abastecimentos          Abastecimento[]
+  ordensServicoRegistradas OrdemServico[] // OS registradas por este Encarregado/Admin
+
   // ==========================================================
-  // NOVO RELACIONAMENTO (PASSO 1)
+  // CAMPOS FALTANTES (Fase 2 - Login QR Code)
   // ==========================================================
-  ordensServicoRegistradas OrdemServico[] // OS registradas por este Encarregado/Admin
+  loginToken            String?   @unique
+  loginTokenExpiresAt   DateTime?
   // ==========================================================
 }
 
