@@ -688,7 +688,7 @@ app.post('/api/user/:id/generate-login-token', authenticateToken, async (req: Au
       },
       data: {
         loginToken: token,
-        loginTokenExpiresAt: null, // Garante que é nulo (permanente)
+        loginTokenExpiresAt: null,
       },
       select: { id: true, nome: true, loginToken: true }
     });
@@ -704,7 +704,7 @@ app.post('/api/user/:id/generate-login-token', authenticateToken, async (req: Au
   }
 });
 
-// Rota para REVOGAR (Excluir) um token manualmente
+// Rota para Excluir um token manualmente
 app.put('/api/user/:id/revoke-login-token', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
   if (req.user?.role !== 'ADMIN' && req.user?.role !== 'ENCARREGADO') {
     return res.status(403).json({ error: 'Acesso não autorizado.' });
@@ -719,7 +719,7 @@ app.put('/api/user/:id/revoke-login-token', authenticateToken, async (req: Authe
     const user = await prisma.user.update({
       where: { id: id, role: 'OPERADOR' },
       data: {
-        loginToken: null, // Remove o token
+        loginToken: null,
         loginTokenExpiresAt: null,
       },
       select: { id: true, nome: true }
