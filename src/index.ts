@@ -4,6 +4,7 @@ import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import cors from 'cors';
 import crypto from 'crypto';
+import { authenticateToken, authorize, AuthenticatedRequest } from './middleware/auth';
 
 
 // ================== FUNÇÃO HELPER ==================
@@ -32,64 +33,21 @@ const port = 3001;
 
 // Middlewares Globais
 app.use(express.json());
-
-
-// ================== CONFIGURAÇÃO DE CORS (PRODUÇÃO) ==================
-// Lista de URLs que podem fazer pedidos à sua API
-const whiteList = [
-  'http://localhost:5173',
-  'https://frontend-frota.vercel.app'
-
-];
-
-app.use(cors({
-  origin: function (origin, callback) {
-    if (!origin) return callback(null, true);
-
-    if (whiteList.indexOf(origin) !== -1) {
-      return callback(null, true);
-    }
-    if (origin.endsWith('.vercel.app')) {
-      return callback(null, true);
-    }
-
-    callback(new Error('Not allowed by CORS'));
-  }
-}));
+app.use(cors());
 
 // --- DEFINIÇÕES DE AUTENTICAÇÃO ---
-interface AuthenticatedRequest extends Request {
-  user?: { userId: string; role: string };
-}
-const TOKEN_SECRET = process.env.TOKEN_SECRET;
+
+// AVISO: O AuthenticatedRequest foi removido daqui pois já vem do import acima
+
+// Mantemos o segredo aqui para a rota de Login (assinatura do token)
+const TOKEN_SECRET = process.env.TOKEN_SECRET || "default_secret_inseguro_para_dev";
 
 // VERIFICAÇÃO DE SEGURANÇA
-if (!TOKEN_SECRET) {
-  console.error("ERRO CRÍTICO: TOKEN_SECRET não está definido nas variáveis de ambiente!");
-  process.exit(1); // Impede o servidor de iniciar sem o segredo
+if (!process.env.TOKEN_SECRET) {
+  console.warn("AVISO: TOKEN_SECRET não definido no .env. Usando segredo padrão inseguro.");
 }
 
-const authenticateToken = (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
-  const authHeader = req.headers['authorization'];
-  const token = authHeader && authHeader.split(' ')[1]; 
-  if (token == null) {
-    console.log('Middleware: Token não encontrado');
-    return res.sendStatus(401);
-  }
-
-  jwt.verify(token, TOKEN_SECRET, (err: any, user: any) => {
-    if (err) {
-       console.log('Middleware: Token inválido ou expirado', err.message);
-       if (err.name === 'TokenExpiredError') {
-         return res.status(401).json({ error: 'Token expirado. Faça login novamente.' });
-       }
-       return res.sendStatus(403); 
-    }
-    req.user = user as { userId: string; role: string };
-    console.log('Middleware: Token verificado, usuário:', req.user);
-    next();
-  });
-};
+// AVISO: A função authenticateToken local foi removida pois já vem do import acima
 
 // --- FIM DAS DEFINIÇÕES DE AUTENTICAÇÃO ---
 
@@ -167,6 +125,7 @@ app.post('/api/user/register', authenticateToken, async (req: AuthenticatedReque
         role, 
       },
     });
+    // Remove a senha do objeto retornado
     const { password: _, ...userSemSenha } = novoUser;
     res.status(201).json(userSemSenha);
   } catch (error) {
@@ -294,7 +253,7 @@ app.get('/api/produtos', authenticateToken, async (req: AuthenticatedRequest, re
   }
 });
 
-// ================== NOVA ROTA (GET by ID) ==================
+// ================== ROTA GET by ID ==================
 app.get('/api/produto/:id', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
   if (req.user?.role !== 'ADMIN') {
     return res.status(403).json({ error: 'Acesso não autorizado.' });
@@ -427,7 +386,7 @@ app.get('/api/fornecedores', authenticateToken, async (req: AuthenticatedRequest
   }
 });
 
-// ================== NOVA ROTA (GET by ID) ==================
+// ================== ROTA GET by ID ==================
 app.get('/api/fornecedor/:id', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
   if (req.user?.role !== 'ADMIN') {
     return res.status(403).json({ error: 'Acesso não autorizado.' });
@@ -546,17 +505,13 @@ app.get('/api/user/:id', authenticateToken, async (req: AuthenticatedRequest, re
 
   const { id } = req.params;
 
-  // ================== CORREÇÃO DO ERRO TS(2375) ==================
-  // Adiciona uma verificação para garantir que 'id' é uma string
   if (typeof id !== 'string') {
     return res.status(400).json({ error: 'ID do utilizador é inválido ou não fornecido.' });
   }
-  // Agora o TypeScript sabe que 'id' é uma string daqui para baixo
-  // ================== FIM DA CORREÇÃO ==================
 
   try {
     const user = await prisma.user.findUnique({
-      where: { id: id }, // Erro da linha 302 corrigido
+      where: { id: id },
       // 2. Seleciona os campos seguros (exclui a senha)
       select: { id: true, nome: true, email: true, role: true, matricula: true },
     });
@@ -584,11 +539,9 @@ app.put('/api/user/:id', authenticateToken, async (req: AuthenticatedRequest, re
   const { id } = req.params;
   const { nome, email, matricula, role, password } = req.body;
 
-  // ================== CORREÇÃO DO ERRO TS(2375) ==================
   if (typeof id !== 'string') {
     return res.status(400).json({ error: 'ID do utilizador é inválido ou não fornecido.' });
   }
-  // ================== FIM DA CORREÇÃO ==================
 
   if (!nome || !email || !role) {
     return res.status(400).json({ error: 'Nome, email e função são obrigatórios.' });
@@ -596,7 +549,6 @@ app.put('/api/user/:id', authenticateToken, async (req: AuthenticatedRequest, re
 
   // 2. Preparar os dados
   const dataToUpdate: any = {
-  // ... (restante da lógica de preparação de dataToUpdate)
     nome,
     email,
     matricula: matricula || null,
@@ -612,7 +564,7 @@ app.put('/api/user/:id', authenticateToken, async (req: AuthenticatedRequest, re
 
   try {
     const updatedUser = await prisma.user.update({
-      where: { id: id }, // Erro da linha 351 corrigido
+      where: { id: id },
       data: dataToUpdate,
       select: { id: true, nome: true, email: true, role: true, matricula: true }, // Retorna sem a senha
     });
@@ -655,7 +607,6 @@ app.delete('/api/user/:id', authenticateToken, async (req: AuthenticatedRequest,
     console.log(`Usuário ${id} removido pelo Admin ${req.user.userId}.`);
     res.status(200).json({ message: 'Utilizador removido com sucesso.' });
   } catch (error) {
-  // ... (restante do catch)
     console.error(`Erro ao remover usuário ${id}:`, error);
     
     // 3. Capturar erro de Chave Estrangeira (o utilizador tem registos)
@@ -1046,13 +997,13 @@ app.get('/api/abastecimentos/recentes', authenticateToken, async (req: Authentic
     const dateFilter: Prisma.DateTimeFilter = {};
     
     if (dataInicio && typeof dataInicio === 'string') {
-      dateFilter.gte = new Date(dataInicio); // Linha 928 corrigida
+      dateFilter.gte = new Date(dataInicio); 
     }
     if (dataFim && typeof dataFim === 'string') {
       // Adiciona 1 dia para incluir o dia final inteiro (até 23:59:59)
       const dataFimDate = new Date(dataFim);
       dataFimDate.setDate(dataFimDate.getDate() + 1);
-      dateFilter.lt = dataFimDate; // Linha 934 corrigida
+      dateFilter.lt = dataFimDate; 
     }
     
     // 2. Atribuir o filtro ao 'where' APENAS se ele não estiver vazio
@@ -1231,12 +1182,12 @@ app.get('/api/ordens-servico/recentes', authenticateToken, async (req: Authentic
     const dateFilter: Prisma.DateTimeFilter = {};
 
     if (dataInicio && typeof dataInicio === 'string') {
-      dateFilter.gte = new Date(dataInicio); // Linha 1103 corrigida
+      dateFilter.gte = new Date(dataInicio); 
     }
     if (dataFim && typeof dataFim === 'string') {
       const dataFimDate = new Date(dataFim);
       dataFimDate.setDate(dataFimDate.getDate() + 1);
-      dateFilter.lt = dataFimDate; // Linha 1108 corrigida
+      dateFilter.lt = dataFimDate; 
     }
 
     // 2. Atribuir o filtro ao 'where' APENAS se ele não estiver vazio
@@ -1269,7 +1220,6 @@ app.get('/api/ordens-servico/recentes', authenticateToken, async (req: Authentic
   }
 });
 
-// <-- MUDANÇA: INÍCIO DA NOVA ROTA DELETE -->
 // ROTA PARA DELETAR UMA ORDEM DE SERVIÇO (Apenas Admin)
 app.delete('/api/ordem-servico/:id', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
   // 1. Autorização (ESTRITA)
@@ -1305,7 +1255,6 @@ app.delete('/api/ordem-servico/:id', authenticateToken, async (req: Authenticate
     res.status(500).json({ error: 'Erro interno ao tentar remover o registo.' });
   }
 });
-// <-- MUDANÇA: FIM DA NOVA ROTA DELETE -->
 
 
 // --- JORNADAS ---
