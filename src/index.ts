@@ -101,14 +101,14 @@ app.post('/api/user/register', authenticateToken, async (req: AuthenticatedReque
   if (req.user?.role !== 'ADMIN') {
     return res.status(403).json({ error: 'Acesso não autorizado. Apenas Admins podem registar usuários.' });
   }
-  
+
   try {
     const { nome, email, password, matricula, role } = req.body;
-    
+
     // ================== (AUTORIZAÇÃO) ==================
     // Impede que um Admin crie outro Admin por esta rota (conforme UI)
     if (role === 'ADMIN') {
-        return res.status(403).json({ error: 'Não é permitido criar outro ADMIN por esta rota.' });
+      return res.status(403).json({ error: 'Não é permitido criar outro ADMIN por esta rota.' });
     }
 
     if (!nome || !email || !password || !role) {
@@ -122,7 +122,7 @@ app.post('/api/user/register', authenticateToken, async (req: AuthenticatedReque
         email,
         password: hashedPassword,
         matricula,
-        role, 
+        role,
       },
     });
     // Remove a senha do objeto retornado
@@ -160,7 +160,7 @@ app.post('/api/auth/login', async (req: Request, res: Response) => {
     const token = jwt.sign(
       { userId: user.id, role: user.role },
       TOKEN_SECRET,
-      { expiresIn: '8h' } 
+      { expiresIn: '8h' }
     );
     res.status(200).json({
       message: 'Login bem-sucedido!',
@@ -197,7 +197,7 @@ app.post('/api/auth/login-token', async (req: Request, res: Response) => {
     const token = jwt.sign(
       { userId: user.id, role: user.role },
       TOKEN_SECRET,
-      { expiresIn: '8h' } 
+      { expiresIn: '8h' }
     );
 
     // 3. Retorna a sessão completa (NÃO apaga o token do banco)
@@ -208,8 +208,8 @@ app.post('/api/auth/login-token', async (req: Request, res: Response) => {
     });
 
   } catch (error) {
-     console.error("Erro no login por token:", error);
-     res.status(500).json({ error: 'Erro interno ao validar token.' });
+    console.error("Erro no login por token:", error);
+    res.status(500).json({ error: 'Erro interno ao validar token.' });
   }
 });
 
@@ -223,12 +223,12 @@ app.post('/api/produto', authenticateToken, async (req: AuthenticatedRequest, re
   if (req.user?.role !== 'ADMIN') {
     return res.status(403).json({ error: 'Acesso não autorizado. Apenas Admins podem criar produtos.' });
   }
-  
+
   try {
     const { nome, tipo, unidadeMedida } = req.body;
     if (!nome || !tipo) return res.status(400).json({ error: 'Nome e Tipo são obrigatórios' });
     if (!(tipo in TipoProduto)) {
-      return res.status(400).json({ error: `Tipo inválido. Valores aceitos: ${Object.values(TipoProduto).join(', ')}`});
+      return res.status(400).json({ error: `Tipo inválido. Valores aceitos: ${Object.values(TipoProduto).join(', ')}` });
     }
     const novoProduto = await prisma.produto.create({
       data: { nome, tipo, unidadeMedida: unidadeMedida || 'Litro' },
@@ -258,7 +258,7 @@ app.get('/api/produto/:id', authenticateToken, async (req: AuthenticatedRequest,
   if (req.user?.role !== 'ADMIN') {
     return res.status(403).json({ error: 'Acesso não autorizado.' });
   }
-  
+
   const { id } = req.params;
   if (typeof id !== 'string') {
     return res.status(400).json({ error: 'ID do produto é inválido ou não fornecido.' });
@@ -272,7 +272,7 @@ app.get('/api/produto/:id', authenticateToken, async (req: AuthenticatedRequest,
     if (!produto) {
       return res.status(404).json({ error: 'Produto não encontrado.' });
     }
-    
+
     res.status(200).json(produto);
   } catch (error) {
     console.error(`Erro GET /api/produto/${id}:`, error);
@@ -298,7 +298,7 @@ app.put('/api/produto/:id', authenticateToken, async (req: AuthenticatedRequest,
       return res.status(400).json({ error: 'Nome e Tipo são obrigatórios' });
     }
     if (!(tipo in TipoProduto)) {
-      return res.status(400).json({ error: `Tipo inválido. Valores aceitos: ${Object.values(TipoProduto).join(', ')}`});
+      return res.status(400).json({ error: `Tipo inválido. Valores aceitos: ${Object.values(TipoProduto).join(', ')}` });
     }
 
     const updatedProduto = await prisma.produto.update({
@@ -358,7 +358,7 @@ app.post('/api/fornecedor', authenticateToken, async (req: AuthenticatedRequest,
   if (req.user?.role !== 'ADMIN') {
     return res.status(403).json({ error: 'Acesso não autorizado. Apenas Admins podem criar fornecedores.' });
   }
-  
+
   try {
     const { nome, cnpj } = req.body;
     if (!nome) return res.status(400).json({ error: 'Nome é obrigatório' });
@@ -369,7 +369,7 @@ app.post('/api/fornecedor', authenticateToken, async (req: AuthenticatedRequest,
   } catch (error) {
     console.error("Erro POST /fornecedor:", error);
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
-       const target = (error.meta?.target as string[])?.join(', ');
+      const target = (error.meta?.target as string[])?.join(', ');
       return res.status(409).json({ error: `Já existe um fornecedor com este ${target}.` });
     }
     res.status(500).json({ error: 'Erro ao cadastrar fornecedor' });
@@ -391,7 +391,7 @@ app.get('/api/fornecedor/:id', authenticateToken, async (req: AuthenticatedReque
   if (req.user?.role !== 'ADMIN') {
     return res.status(403).json({ error: 'Acesso não autorizado.' });
   }
-  
+
   const { id } = req.params;
   if (typeof id !== 'string') {
     return res.status(400).json({ error: 'ID do fornecedor é inválido ou não fornecido.' });
@@ -405,7 +405,7 @@ app.get('/api/fornecedor/:id', authenticateToken, async (req: AuthenticatedReque
     if (!fornecedor) {
       return res.status(404).json({ error: 'Fornecedor não encontrado.' });
     }
-    
+
     res.status(200).json(fornecedor);
   } catch (error) {
     console.error(`Erro GET /api/fornecedor/${id}:`, error);
@@ -442,7 +442,7 @@ app.put('/api/fornecedor/:id', authenticateToken, async (req: AuthenticatedReque
   } catch (error) {
     console.error(`Erro PUT /api/fornecedor/${id}:`, error);
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
-       const target = (error.meta?.target as string[])?.join(', ');
+      const target = (error.meta?.target as string[])?.join(', ');
       return res.status(409).json({ error: `Já existe um fornecedor com este ${target}.` });
     }
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {
@@ -575,8 +575,8 @@ app.put('/api/user/:id', authenticateToken, async (req: AuthenticatedRequest, re
       const target = (error.meta?.target as string[])?.join(', ');
       return res.status(409).json({ error: `Já existe um usuário com este ${target}.` });
     }
-     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {
-        return res.status(404).json({ error: 'Utilizador não encontrado.' });
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {
+      return res.status(404).json({ error: 'Utilizador não encontrado.' });
     }
     res.status(500).json({ error: 'Erro interno ao atualizar usuário.' });
   }
@@ -608,13 +608,13 @@ app.delete('/api/user/:id', authenticateToken, async (req: AuthenticatedRequest,
     res.status(200).json({ message: 'Utilizador removido com sucesso.' });
   } catch (error) {
     console.error(`Erro ao remover usuário ${id}:`, error);
-    
+
     // 3. Capturar erro de Chave Estrangeira (o utilizador tem registos)
     if (error instanceof Prisma.PrismaClientKnownRequestError && (error.code === 'P2003' || error.code === 'P2014')) {
       return res.status(409).json({ error: 'Este utilizador não pode ser removido pois possui jornadas, abastecimentos ou manutenções registadas. (Erro de integridade).' });
     }
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {
-        return res.status(404).json({ error: 'Utilizador não encontrado.' });
+      return res.status(404).json({ error: 'Utilizador não encontrado.' });
     }
     res.status(500).json({ error: 'Erro interno ao remover utilizador.' });
   }
@@ -625,7 +625,7 @@ app.post('/api/user/:id/generate-login-token', authenticateToken, async (req: Au
   if (req.user?.role !== 'ADMIN' && req.user?.role !== 'ENCARREGADO') {
     return res.status(403).json({ error: 'Acesso não autorizado.' });
   }
-  
+
   const { id } = req.params;
   if (typeof id !== 'string') {
     return res.status(400).json({ error: 'ID do utilizador é inválido ou não fornecido.' });
@@ -634,12 +634,12 @@ app.post('/api/user/:id/generate-login-token', authenticateToken, async (req: Au
   try {
     // 1. Gerar um token aleatório
     const token = crypto.randomBytes(32).toString('hex');
-    
+
     // 2. Atualizar o utilizador com o token (SEM data de expiração)
     const user = await prisma.user.update({
-      where: { 
+      where: {
         id: id,
-        role: 'OPERADOR' 
+        role: 'OPERADOR'
       },
       data: {
         loginToken: token,
@@ -649,7 +649,7 @@ app.post('/api/user/:id/generate-login-token', authenticateToken, async (req: Au
     });
 
     res.status(200).json({ loginToken: user.loginToken });
-  
+
   } catch (error) {
     console.error("Erro ao gerar token de login:", error);
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {
@@ -664,7 +664,7 @@ app.put('/api/user/:id/revoke-login-token', authenticateToken, async (req: Authe
   if (req.user?.role !== 'ADMIN' && req.user?.role !== 'ENCARREGADO') {
     return res.status(403).json({ error: 'Acesso não autorizado.' });
   }
-  
+
   const { id } = req.params;
   if (typeof id !== 'string') {
     return res.status(400).json({ error: 'ID do utilizador inválido.' });
@@ -681,7 +681,7 @@ app.put('/api/user/:id/revoke-login-token', authenticateToken, async (req: Authe
     });
 
     res.status(200).json({ message: `Token de login revogado com sucesso para ${user.nome}.` });
-  
+
   } catch (error) {
     console.error("Erro ao revogar token:", error);
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {
@@ -697,23 +697,23 @@ app.post('/api/veiculo', authenticateToken, async (req: AuthenticatedRequest, re
   if (req.user?.role !== 'ADMIN') {
     return res.status(403).json({ error: 'Acesso não autorizado. Apenas Admins podem criar veículos.' });
   }
-  
+
   try {
-    const { 
-      placa, 
-      modelo, 
-      ano, 
-      tipoCombustivel, 
-      capacidadeTanque, 
+    const {
+      placa,
+      modelo,
+      ano,
+      tipoCombustivel,
+      capacidadeTanque,
       tipoVeiculo,
       vencimentoCiv,
       vencimentoCipp
-    } = req.body; 
+    } = req.body;
 
     if (!placa || !modelo || !ano) {
       return res.status(400).json({ error: 'Placa, modelo e ano são obrigatórios' });
     }
-    
+
     const novoVeiculo = await prisma.veiculo.create({
       data: {
         placa: placa.toUpperCase(),
@@ -722,7 +722,7 @@ app.post('/api/veiculo', authenticateToken, async (req: AuthenticatedRequest, re
         tipoCombustivel: tipoCombustivel || 'DIESEL_S10',
         capacidadeTanque: capacidadeTanque ? parseFloat(capacidadeTanque) : null,
         tipoVeiculo: tipoVeiculo || null,
-        
+
         vencimentoCiv: vencimentoCiv ? new Date(vencimentoCiv) : null,
         vencimentoCipp: vencimentoCipp ? new Date(vencimentoCipp) : null,
       },
@@ -739,8 +739,8 @@ app.post('/api/veiculo', authenticateToken, async (req: AuthenticatedRequest, re
 
 app.get('/api/veiculos', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const veiculos = await prisma.veiculo.findMany({ 
-      orderBy: { placa: 'asc' } 
+    const veiculos = await prisma.veiculo.findMany({
+      orderBy: { placa: 'asc' }
     });
     res.status(200).json(veiculos);
   } catch (error) {
@@ -753,7 +753,7 @@ app.get('/api/veiculo/:id', authenticateToken, async (req: AuthenticatedRequest,
   if (req.user?.role !== 'ADMIN') {
     return res.status(403).json({ error: 'Acesso não autorizado.' });
   }
-  
+
   const { id } = req.params;
   if (typeof id !== 'string') {
     return res.status(400).json({ error: 'ID do veículo é inválido ou não fornecido.' });
@@ -767,12 +767,16 @@ app.get('/api/veiculo/:id', authenticateToken, async (req: AuthenticatedRequest,
     if (!veiculo) {
       return res.status(404).json({ error: 'Veículo não encontrado.' });
     }
-    
+
+    // --- ADIÇÃO: Buscar o último KM registrado ---
+    const ultimoKm = await getUltimoKMRegistrado(id);
+
     // Formata as datas antes de enviar para o frontend
     const veiculoFormatado = {
       ...veiculo,
       vencimentoCiv: formatDateToInput(veiculo.vencimentoCiv),
       vencimentoCipp: formatDateToInput(veiculo.vencimentoCipp),
+      ultimoKm: ultimoKm // <-- Envia o KM real para o frontend validar
     };
 
     res.status(200).json(veiculoFormatado);
@@ -818,7 +822,7 @@ app.put('/api/veiculo/:id', authenticateToken, async (req: AuthenticatedRequest,
         tipoCombustivel: tipoCombustivel || 'DIESEL_S10',
         capacidadeTanque: capacidadeTanque ? parseFloat(capacidadeTanque) : null,
         tipoVeiculo: tipoVeiculo || null,
-        
+
         // Converte a string YYYY-MM-DD (ou null) de volta para um objeto Date
         vencimentoCiv: vencimentoCiv ? new Date(vencimentoCiv) : null,
         vencimentoCipp: vencimentoCipp ? new Date(vencimentoCipp) : null,
@@ -869,9 +873,9 @@ app.delete('/api/veiculo/:id', authenticateToken, async (req: AuthenticatedReque
 
 // --- ABASTECIMENTO ---
 app.post('/api/abastecimento', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
- if (req.user?.role !== 'ADMIN' && req.user?.role !== 'ENCARREGADO') {
-   return res.status(403).json({ error: 'Apenas Encarregados ou Admins podem registrar abastecimentos.' });
- }
+  if (req.user?.role !== 'ADMIN' && req.user?.role !== 'ENCARREGADO') {
+    return res.status(403).json({ error: 'Apenas Encarregados ou Admins podem registrar abastecimentos.' });
+  }
   try {
     const {
       veiculoId,
@@ -885,7 +889,7 @@ app.post('/api/abastecimento', authenticateToken, async (req: AuthenticatedReque
       justificativa,
       fotoNotaFiscalUrl
     } = req.body;
-    
+
     if (!veiculoId || !operadorId || !fornecedorId || !kmOdometro || !dataHora || !itens || !placaCartaoUsado || !fotoNotaFiscalUrl) {
       return res.status(400).json({ error: 'Campos obrigatórios faltando (Veículo, Operador, Fornecedor, KM, Data, Itens, Cartão e Foto da Nota).' });
     }
@@ -901,17 +905,17 @@ app.post('/api/abastecimento', authenticateToken, async (req: AuthenticatedReque
     // 2. USAR O "SUPER-VERIFICADOR"
     const ultimoKM = await getUltimoKMRegistrado(veiculoId);
     if (kmOdometroFloat < ultimoKM) {
-      return res.status(400).json({ 
-        error: `KM do odômetro (${kmOdometroFloat}) é menor que o último KM registado (${ultimoKM}) para este veículo.` 
+      return res.status(400).json({
+        error: `KM do odômetro (${kmOdometroFloat}) é menor que o último KM registado (${ultimoKM}) para este veículo.`
       });
     }
 
     for (const item of itens) {
       if (!item.produtoId || !item.quantidade || !item.valorPorUnidade) {
-        return res.status(400).json({ error: 'Cada item deve ter produtoId, quantidade e valorPorUnidade.'});
+        return res.status(400).json({ error: 'Cada item deve ter produtoId, quantidade e valorPorUnidade.' });
       }
       if (parseFloat(item.quantidade) <= 0 || parseFloat(item.valorPorUnidade) <= 0) {
-         return res.status(400).json({ error: 'Quantidade e Valor por Unidade devem ser positivos.'});
+        return res.status(400).json({ error: 'Quantidade e Valor por Unidade devem ser positivos.' });
       }
       const valorTotalItem = parseFloat(item.quantidade) * parseFloat(item.valorPorUnidade);
       custoTotalGeral += valorTotalItem;
@@ -944,18 +948,18 @@ app.post('/api/abastecimento', authenticateToken, async (req: AuthenticatedReque
   } catch (error) {
     console.error("Erro POST /abastecimento:", error);
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2003') {
-       const field = (error.meta?.field_name as string)?.replace('_id','');
+      const field = (error.meta?.field_name as string)?.replace('_id', '');
       return res.status(404).json({ error: `ID inválido fornecido para ${field}. Registro não encontrado.` });
     }
-     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {
-         return res.status(404).json({ error: 'Um dos IDs fornecidos (veiculo, operador, fornecedor) não existe.' });
-     }
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {
+      return res.status(404).json({ error: 'Um dos IDs fornecidos (veiculo, operador, fornecedor) não existe.' });
+    }
     res.status(500).json({ error: 'Erro ao registrar abastecimento' });
   }
 });
 
 app.get('/api/veiculo/:veiculoId/abastecimentos', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
-   try {
+  try {
     const { veiculoId } = req.params;
     if (!veiculoId) {
       return res.status(400).json({ error: 'veiculoId não foi fornecido.' });
@@ -995,17 +999,17 @@ app.get('/api/abastecimentos/recentes', authenticateToken, async (req: Authentic
     // ================== CORREÇÃO AQUI ==================
     // 1. Criar um objeto de filtro de data separado
     const dateFilter: Prisma.DateTimeFilter = {};
-    
+
     if (dataInicio && typeof dataInicio === 'string') {
-      dateFilter.gte = new Date(dataInicio); 
+      dateFilter.gte = new Date(dataInicio);
     }
     if (dataFim && typeof dataFim === 'string') {
       // Adiciona 1 dia para incluir o dia final inteiro (até 23:59:59)
       const dataFimDate = new Date(dataFim);
       dataFimDate.setDate(dataFimDate.getDate() + 1);
-      dateFilter.lt = dataFimDate; 
+      dateFilter.lt = dataFimDate;
     }
-    
+
     // 2. Atribuir o filtro ao 'where' APENAS se ele não estiver vazio
     if (Object.keys(dateFilter).length > 0) {
       where.dataHora = dateFilter;
@@ -1081,7 +1085,7 @@ app.post('/api/ordem-servico', authenticateToken, async (req: AuthenticatedReque
   if (req.user?.role !== 'ADMIN' && req.user?.role !== 'ENCARREGADO') {
     return res.status(403).json({ error: 'Apenas Encarregados ou Admins podem registrar manutenções.' });
   }
-  
+
   const encarregadoId = req.user?.userId;
 
   try {
@@ -1111,17 +1115,17 @@ app.post('/api/ordem-servico', authenticateToken, async (req: AuthenticatedReque
     // 3. USAR O "SUPER-VERIFICADOR"
     const ultimoKM = await getUltimoKMRegistrado(veiculoId);
     if (kmAtualFloat < ultimoKM) {
-      return res.status(400).json({ 
-        error: `KM Atual (${kmAtualFloat}) é menor que o último KM registado (${ultimoKM}) para este veículo.` 
+      return res.status(400).json({
+        error: `KM Atual (${kmAtualFloat}) é menor que o último KM registado (${ultimoKM}) para este veículo.`
       });
     }
 
     for (const item of itens) {
       if (!item.produtoId || !item.quantidade || !item.valorPorUnidade) {
-        return res.status(400).json({ error: 'Cada item deve ter produtoId, quantidade e valorPorUnidade.'});
+        return res.status(400).json({ error: 'Cada item deve ter produtoId, quantidade e valorPorUnidade.' });
       }
       if (parseFloat(item.quantidade) <= 0 || parseFloat(item.valorPorUnidade) < 0) {
-         return res.status(400).json({ error: 'Quantidade deve ser positiva e Valor por Unidade não pode ser negativo.'});
+        return res.status(400).json({ error: 'Quantidade deve ser positiva e Valor por Unidade não pode ser negativo.' });
       }
       const valorTotalItem = parseFloat(item.quantidade) * parseFloat(item.valorPorUnidade);
       custoTotalGeral += valorTotalItem;
@@ -1146,7 +1150,7 @@ app.post('/api/ordem-servico', authenticateToken, async (req: AuthenticatedReque
         fotoComprovanteUrl: fotoComprovanteUrl,
         itens: { create: itensParaCriar },
       },
-      include: { 
+      include: {
         itens: { include: { produto: true } },
         veiculo: { select: { placa: true } },
         fornecedor: { select: { nome: true } }
@@ -1159,7 +1163,7 @@ app.post('/api/ordem-servico', authenticateToken, async (req: AuthenticatedReque
   } catch (error) {
     console.error("Erro POST /api/ordem-servico:", error);
     if (error instanceof Prisma.PrismaClientKnownRequestError && (error.code === 'P2003' || error.code === 'P2025')) {
-       const field = (error.meta?.field_name as string)?.replace('_id','');
+      const field = (error.meta?.field_name as string)?.replace('_id', '');
       return res.status(404).json({ error: `ID inválido fornecido para ${field}. Registro não encontrado.` });
     }
     res.status(500).json({ error: 'Erro ao registrar Ordem de Serviço' });
@@ -1182,12 +1186,12 @@ app.get('/api/ordens-servico/recentes', authenticateToken, async (req: Authentic
     const dateFilter: Prisma.DateTimeFilter = {};
 
     if (dataInicio && typeof dataInicio === 'string') {
-      dateFilter.gte = new Date(dataInicio); 
+      dateFilter.gte = new Date(dataInicio);
     }
     if (dataFim && typeof dataFim === 'string') {
       const dataFimDate = new Date(dataFim);
       dataFimDate.setDate(dataFimDate.getDate() + 1);
-      dateFilter.lt = dataFimDate; 
+      dateFilter.lt = dataFimDate;
     }
 
     // 2. Atribuir o filtro ao 'where' APENAS se ele não estiver vazio
@@ -1271,8 +1275,8 @@ app.post('/api/jornada/iniciar', authenticateToken, async (req: AuthenticatedReq
     }
 
     const kmInicioFloat = parseFloat(kmInicio);
-    if (isNaN(kmInicioFloat) || kmInicioFloat < 0) { 
-        return res.status(400).json({ error: 'KM Inicial inválido.' });
+    if (isNaN(kmInicioFloat) || kmInicioFloat < 0) {
+      return res.status(400).json({ error: 'KM Inicial inválido.' });
     }
     const dataInicioAtual = new Date();
 
@@ -1280,11 +1284,11 @@ app.post('/api/jornada/iniciar', authenticateToken, async (req: AuthenticatedReq
     // 4. USAR O "SUPER-VERIFICADOR"
     const ultimoKM = await getUltimoKMRegistrado(veiculoId);
     if (kmInicioFloat < ultimoKM) {
-      return res.status(400).json({ 
-        error: `KM Inicial (${kmInicioFloat}) é menor que o último KM registado (${ultimoKM}) para este veículo.` 
+      return res.status(400).json({
+        error: `KM Inicial (${kmInicioFloat}) é menor que o último KM registado (${ultimoKM}) para este veículo.`
       });
     }
-    
+
     // Lógica de Auto-KM Fim (Regra A) - Esta lógica está correta e deve ser mantida
     // Ela procura por jornadas *não finalizadas* para fechar
     const ultimaJornadaVeiculo = await prisma.jornada.findFirst({
@@ -1295,12 +1299,12 @@ app.post('/api/jornada/iniciar', authenticateToken, async (req: AuthenticatedReq
     let updateUltimaJornadaVeiculo = null;
     if (ultimaJornadaVeiculo) {
       if (kmInicioFloat < ultimaJornadaVeiculo.kmInicio) {
-         console.warn(`Auto Preenchimento KM Fim: KM da nova jornada (${kmInicioFloat}) é menor que KM Inicial (${ultimaJornadaVeiculo.kmInicio}) da jornada ${ultimaJornadaVeiculo.id}. Preenchendo mesmo assim.`);
+        console.warn(`Auto Preenchimento KM Fim: KM da nova jornada (${kmInicioFloat}) é menor que KM Inicial (${ultimaJornadaVeiculo.kmInicio}) da jornada ${ultimaJornadaVeiculo.id}. Preenchendo mesmo assim.`);
       }
       console.log(`Preenchendo KM Fim da jornada ${ultimaJornadaVeiculo.id} com ${kmInicioFloat}`);
       updateUltimaJornadaVeiculo = prisma.jornada.update({
         where: { id: ultimaJornadaVeiculo.id },
-        data: { kmFim: kmInicioFloat, dataFim: new Date() }, 
+        data: { kmFim: kmInicioFloat, dataFim: new Date() },
       });
     }
 
@@ -1315,10 +1319,10 @@ app.post('/api/jornada/iniciar', authenticateToken, async (req: AuthenticatedReq
         observacoes: observacoes,
         fotoInicioUrl: fotoInicioUrl,
       },
-       include: {
-            veiculo: { select: { placa: true, modelo: true } },
-            encarregado: { select: { nome: true } },
-       }
+      include: {
+        veiculo: { select: { placa: true, modelo: true } },
+        encarregado: { select: { nome: true } },
+      }
     });
 
     // Executa em Transação
@@ -1328,19 +1332,19 @@ app.post('/api/jornada/iniciar', authenticateToken, async (req: AuthenticatedReq
     } else {
       resultadoTransacao = await prisma.$transaction([createNovaJornada]);
     }
-    
+
     const novaJornadaCriada = resultadoTransacao[resultadoTransacao.length - 1]!;
     console.log(`Jornada ${novaJornadaCriada.id} iniciada por ${operadorId}`);
     res.status(201).json(novaJornadaCriada);
   } catch (error) {
     console.error("Erro POST /jornada/iniciar:", error);
-     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2003') {
-       const field = (error.meta?.field_name as string)?.replace('_id','');
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2003') {
+      const field = (error.meta?.field_name as string)?.replace('_id', '');
       return res.status(404).json({ error: `ID inválido fornecido para ${field}. Registro não encontrado.` });
     }
-     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {
-         return res.status(404).json({ error: 'ID do Veículo ou Encarregado não encontrado.' });
-     }
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {
+      return res.status(404).json({ error: 'ID do Veículo ou Encarregado não encontrado.' });
+    }
     res.status(500).json({ error: 'Erro ao iniciar jornada' });
   }
 });
@@ -1349,23 +1353,23 @@ app.post('/api/jornada/iniciar', authenticateToken, async (req: AuthenticatedReq
 app.put('/api/jornada/finalizar/:jornadaId', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { jornadaId } = req.params;
-    const userId = req.user?.userId; 
+    const userId = req.user?.userId;
 
     if (!jornadaId) {
       return res.status(400).json({ error: 'jornadaId não fornecido.' });
     }
-    const { kmFim, observacoes, fotoFimUrl } = req.body; 
-    
+    const { kmFim, observacoes, fotoFimUrl } = req.body;
+
     if (!kmFim) {
       return res.status(400).json({ error: 'kmFim é obrigatório.' });
     }
     if (!fotoFimUrl && req.user?.role === 'OPERADOR') {
       return res.status(400).json({ error: 'A foto do odómetro de fim é obrigatória.' });
     }
-    
+
     const kmFimFloat = parseFloat(kmFim);
-     if (isNaN(kmFimFloat) || kmFimFloat < 0) {
-        return res.status(400).json({ error: 'KM Final inválido.' });
+    if (isNaN(kmFimFloat) || kmFimFloat < 0) {
+      return res.status(400).json({ error: 'KM Final inválido.' });
     }
     const dataFimAtual = new Date();
 
@@ -1378,22 +1382,22 @@ app.put('/api/jornada/finalizar/:jornadaId', authenticateToken, async (req: Auth
     }
 
     if (jornadaExistente.operadorId !== userId && req.user?.role !== 'ADMIN' && req.user?.role !== 'ENCARREGADO') {
-        console.log(`Tentativa não autorizada: User ${userId} (${req.user?.role}) tentando finalizar jornada ${jornadaId} do operador ${jornadaExistente.operadorId}`);
-        return res.status(403).json({ error: 'Você não tem permissão para finalizar esta jornada.' });
+      console.log(`Tentativa não autorizada: User ${userId} (${req.user?.role}) tentando finalizar jornada ${jornadaId} do operador ${jornadaExistente.operadorId}`);
+      return res.status(403).json({ error: 'Você não tem permissão para finalizar esta jornada.' });
     }
 
     if (jornadaExistente.kmFim !== null) {
       return res.status(400).json({ error: `Jornada ${jornadaId} já finalizada.` });
     }
-    
+
     // ================== (KM LÓGICO) ==================
     // 5. USAR O "SUPER-VERIFICADOR" (Mesmo ao finalizar)
     // Garantir que o KM final não é menor que o último KM mestre (de outro evento)
     const ultimoKM = await getUltimoKMRegistrado(jornadaExistente.veiculoId);
     if (kmFimFloat < ultimoKM && ultimoKM > jornadaExistente.kmInicio) {
-       return res.status(400).json({ 
-         error: `Atenção: O KM Final (${kmFimFloat}) é menor que o último KM registado (${ultimoKM}) em outro evento (Abastecimento/Manutenção). Corrija o valor.` 
-       });
+      return res.status(400).json({
+        error: `Atenção: O KM Final (${kmFimFloat}) é menor que o último KM registado (${ultimoKM}) em outro evento (Abastecimento/Manutenção). Corrija o valor.`
+      });
     }
     // Verificação interna 
     if (kmFimFloat < jornadaExistente.kmInicio) {
@@ -1401,11 +1405,11 @@ app.put('/api/jornada/finalizar/:jornadaId', authenticateToken, async (req: Auth
     }
 
     const proximaJornada = await prisma.jornada.findFirst({
-        where: { veiculoId: jornadaExistente.veiculoId, dataInicio: { gt: jornadaExistente.dataInicio } },
-        orderBy: { dataInicio: 'asc' }
+      where: { veiculoId: jornadaExistente.veiculoId, dataInicio: { gt: jornadaExistente.dataInicio } },
+      orderBy: { dataInicio: 'asc' }
     });
-    if(proximaJornada && kmFimFloat > proximaJornada.kmInicio) {
-        return res.status(400).json({ error: `KM Final (${kmFimFloat}) não pode ser maior que o KM Inicial (${proximaJornada.kmInicio}) da jornada seguinte (ID: ${proximaJornada.id}).` });
+    if (proximaJornada && kmFimFloat > proximaJornada.kmInicio) {
+      return res.status(400).json({ error: `KM Final (${kmFimFloat}) não pode ser maior que o KM Inicial (${proximaJornada.kmInicio}) da jornada seguinte (ID: ${proximaJornada.id}).` });
     }
 
     const jornadaFinalizada = await prisma.jornada.update({
@@ -1430,9 +1434,9 @@ app.put('/api/jornada/finalizar/:jornadaId', authenticateToken, async (req: Auth
 
 // Buscar Jornadas Abertas (Apenas Encarregado/Admin)
 app.get('/api/jornadas/abertas', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
- if (req.user?.role !== 'ADMIN' && req.user?.role !== 'ENCARREGADO') {
-   return res.status(403).json({ error: 'Acesso não autorizado.' });
- }
+  if (req.user?.role !== 'ADMIN' && req.user?.role !== 'ENCARREGADO') {
+    return res.status(403).json({ error: 'Acesso não autorizado.' });
+  }
   try {
     const jornadasAbertas = await prisma.jornada.findMany({
       where: { kmFim: null },
@@ -1458,7 +1462,7 @@ app.get('/api/jornadas/minhas-abertas-operador', authenticateToken, async (req: 
   try {
     const jornadasAbertasOperador = await prisma.jornada.findMany({
       where: { operadorId: userId, kmFim: null },
-      include: { 
+      include: {
         veiculo: { select: { placa: true, modelo: true } },
         encarregado: { select: { nome: true } },
       },
@@ -1466,35 +1470,35 @@ app.get('/api/jornadas/minhas-abertas-operador', authenticateToken, async (req: 
     });
 
     const agora = new Date();
-    const jornadasAtivasValidas: any[] = []; 
-    const updatesBatch: Prisma.PrismaPromise<any>[] = []; 
+    const jornadasAtivasValidas: any[] = [];
+    const updatesBatch: Prisma.PrismaPromise<any>[] = [];
 
     for (const jornada of jornadasAbertasOperador) {
-        const inicioJornada = new Date(jornada.dataInicio);
-        const horasPassadas = (agora.getTime() - inicioJornada.getTime()) / (1000 * 60 * 60);
+      const inicioJornada = new Date(jornada.dataInicio);
+      const horasPassadas = (agora.getTime() - inicioJornada.getTime()) / (1000 * 60 * 60);
 
-        if (horasPassadas > 17) {
-            console.log(`[GET /minhas-abertas] Fechando automaticamente a jornada ${jornada.id} por tempo limite de 17h.`);
-            updatesBatch.push(
-                prisma.jornada.update({
-                    where: { id: jornada.id },
-                    data: { 
-                        kmFim: jornada.kmInicio, 
-                        dataFim: agora, 
-                        observacoes: (jornada.observacoes || '') + ' [Fechada automaticamente por tempo limite (17h).]'
-                    }
-                })
-            );
-        } else {
-            jornadasAtivasValidas.push(jornada);
-        }
+      if (horasPassadas > 17) {
+        console.log(`[GET /minhas-abertas] Fechando automaticamente a jornada ${jornada.id} por tempo limite de 17h.`);
+        updatesBatch.push(
+          prisma.jornada.update({
+            where: { id: jornada.id },
+            data: {
+              kmFim: jornada.kmInicio,
+              dataFim: agora,
+              observacoes: (jornada.observacoes || '') + ' [Fechada automaticamente por tempo limite (17h).]'
+            }
+          })
+        );
+      } else {
+        jornadasAtivasValidas.push(jornada);
+      }
     }
-    
+
     if (updatesBatch.length > 0) {
-        await prisma.$transaction(updatesBatch); 
+      await prisma.$transaction(updatesBatch);
     }
 
-    res.status(200).json(jornadasAtivasValidas); 
+    res.status(200).json(jornadasAtivasValidas);
 
   } catch (error) {
     console.error("Erro GET /jornadas/minhas-abertas-operador:", error);
@@ -1505,9 +1509,9 @@ app.get('/api/jornadas/minhas-abertas-operador', authenticateToken, async (req: 
 
 // --- RELATÓRIOS ---
 app.get('/api/relatorio/consumo/:veiculoId', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
- if (req.user?.role !== 'ADMIN' && req.user?.role !== 'ENCARREGADO') {
-   return res.status(403).json({ error: 'Acesso não autorizado.'});
- }
+  if (req.user?.role !== 'ADMIN' && req.user?.role !== 'ENCARREGADO') {
+    return res.status(403).json({ error: 'Acesso não autorizado.' });
+  }
   try {
     const { veiculoId } = req.params;
     if (!veiculoId) {
@@ -1528,16 +1532,16 @@ app.get('/api/relatorio/consumo/:veiculoId', authenticateToken, async (req: Auth
       return res.status(400).json({ message: 'KM rodado inválido (KM Final <= KM Inicial nos abastecimentos).' });
     }
 
-     const agregacaoLitrosCorreta = await prisma.itemAbastecimento.aggregate({
-         _sum: { quantidade: true },
-         where: {
-             abastecimento: {
-                 veiculoId: veiculoId,
-                 kmOdometro: { gt: kmInicial } 
-             },
-             produto: { tipo: 'COMBUSTIVEL' },
-         },
-     });
+    const agregacaoLitrosCorreta = await prisma.itemAbastecimento.aggregate({
+      _sum: { quantidade: true },
+      where: {
+        abastecimento: {
+          veiculoId: veiculoId,
+          kmOdometro: { gt: kmInicial }
+        },
+        produto: { tipo: 'COMBUSTIVEL' },
+      },
+    });
 
     const totalLitrosConsumidos = agregacaoLitrosCorreta._sum.quantidade;
 
@@ -1563,9 +1567,9 @@ app.get('/api/relatorio/consumo/:veiculoId', authenticateToken, async (req: Auth
 });
 
 app.get('/api/relatorio/custo/:veiculoId', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
- if (req.user?.role !== 'ADMIN' && req.user?.role !== 'ENCARREGADO') {
-   return res.status(403).json({ error: 'Acesso não autorizado.'});
- }
+  if (req.user?.role !== 'ADMIN' && req.user?.role !== 'ENCARREGADO') {
+    return res.status(403).json({ error: 'Acesso não autorizado.' });
+  }
   try {
     const { veiculoId } = req.params;
     if (!veiculoId) {
@@ -1585,15 +1589,15 @@ app.get('/api/relatorio/custo/:veiculoId', authenticateToken, async (req: Authen
       return res.status(400).json({ message: 'KM rodado inválido.' });
     }
 
-     const agregacaoCustosCorreta = await prisma.itemAbastecimento.aggregate({
-         _sum: { valorTotal: true },
-         where: {
-             abastecimento: {
-                 veiculoId: veiculoId,
-                 kmOdometro: { gt: kmInicial }
-             },
-         },
-     });
+    const agregacaoCustosCorreta = await prisma.itemAbastecimento.aggregate({
+      _sum: { valorTotal: true },
+      where: {
+        abastecimento: {
+          veiculoId: veiculoId,
+          kmOdometro: { gt: kmInicial }
+        },
+      },
+    });
 
     const custoTotalOperacional = agregacaoCustosCorreta._sum.valorTotal;
 
@@ -1604,7 +1608,7 @@ app.get('/api/relatorio/custo/:veiculoId', authenticateToken, async (req: Authen
     res.status(200).json({
       veiculoId: veiculoId,
       custoPorKm_RS: custoPorKm.toFixed(2),
-      custoPorKm_RS_string: `R$ ${custoPorKm.toFixed(2)}`, 
+      custoPorKm_RS_string: `R$ ${custoPorKm.toFixed(2)}`,
       custoTotalOperacional_RS: custoTotalOperacional.toFixed(2),
       custoTotalOperacional_RS_string: `R$ ${custoTotalOperacional.toFixed(2)}`,
       totalKMRodado: totalKMRodado.toFixed(2),
@@ -1629,16 +1633,16 @@ app.get('/api/relatorio/sumario', authenticateToken, async (req: AuthenticatedRe
 
   try {
     // ================== Ler o veiculoId da query ==================
-    const { ano, mes, veiculoId } = req.query; 
+    const { ano, mes, veiculoId } = req.query;
 
     // 1. Define o período de filtro (Default: Mês atual)
     const anoAtual = new Date().getFullYear();
     const mesAtual = new Date().getMonth() + 1; // JS month é 0-11
-    
+
     const anoNum = ano ? parseInt(ano as string) : anoAtual;
     const mesNum = mes ? parseInt(mes as string) : mesAtual;
 
-    const dataInicio = new Date(anoNum, mesNum - 1, 1); 
+    const dataInicio = new Date(anoNum, mesNum - 1, 1);
     const dataFim = new Date(anoNum, mesNum, 1);
 
     // ================== Criar os objectos de filtro dinâmicos ==================
@@ -1651,7 +1655,7 @@ app.get('/api/relatorio/sumario', authenticateToken, async (req: AuthenticatedRe
     // Filtro de veículo (só é adicionado se veiculoId existir)
     const filtroVeiculo = veiculoId ? { veiculoId: veiculoId as string } : {};
 
-    
+
     // 2. KPI: Custos de COMBUSTÍVEL (ex: Diesel)
     const custoCombustivelResult = await prisma.itemAbastecimento.aggregate({
       _sum: { valorTotal: true },
@@ -1681,7 +1685,7 @@ app.get('/api/relatorio/sumario', authenticateToken, async (req: AuthenticatedRe
       }
     });
     const custoTotalAditivo = custoAditivoResult._sum.valorTotal || 0;
-    
+
     // 4. KPI: Custos de Manutenção e Lavagem
     const custoManutencaoResult = await prisma.ordemServico.aggregate({
       _sum: { custoTotal: true },
@@ -1733,15 +1737,15 @@ app.get('/api/relatorio/sumario', authenticateToken, async (req: AuthenticatedRe
 
     // 7. KPIs Derivados
     const custoTotalGeral = custoTotalCombustivel + custoTotalAditivo + custoTotalManutencao;
-    
-    const consumoMedioKML = (litrosTotaisConsumidos > 0) 
-      ? (kmTotalRodado / litrosTotaisConsumidos) 
+
+    const consumoMedioKML = (litrosTotaisConsumidos > 0)
+      ? (kmTotalRodado / litrosTotaisConsumidos)
       : 0;
-      
+
     const custoMedioPorKM = (kmTotalRodado > 0)
       ? (custoTotalGeral / kmTotalRodado)
       : 0;
-    
+
     // 8. Resposta
     res.status(200).json({
       filtros: {
@@ -1785,7 +1789,7 @@ app.post('/api/plano-manutencao', authenticateToken, async (req: AuthenticatedRe
     // ================== (KM LÓGICO) ==================
     // 6. USAR O "SUPER-VERIFICADOR" para definir o próximo alerta
     const kmAtual = await getUltimoKMRegistrado(veiculoId);
-    
+
     let kmProximaManutencao = null;
     let dataProximaManutencao = null;
 
@@ -1868,7 +1872,7 @@ app.get('/api/alertas', authenticateToken, async (req: AuthenticatedRequest, res
   try {
     const alertas: any[] = [];
     const hoje = new Date();
-    
+
     // --- Definição dos Limites de Alerta ---
     const limiteAlertaDias = 30; // Avisar 30 dias antes
     const dataLimite = addDays(hoje, limiteAlertaDias);
@@ -1920,20 +1924,20 @@ app.get('/api/alertas', authenticateToken, async (req: AuthenticatedRequest, res
           mensagem: `Manutenção por tempo (${plano.descricao}) para ${plano.veiculo.placa} ${vencido ? 'venceu em' : 'vence em'}: ${plano.dataProximaManutencao.toLocaleDateString('pt-BR')}.`
         });
       }
-      
+
       // B. Verificação por KM
       if (plano.tipoIntervalo === 'KM' && plano.kmProximaManutencao) {
         const kmAtualVeiculo = await getUltimoKMRegistrado(plano.veiculo.id);
         const kmRestante = plano.kmProximaManutencao - kmAtualVeiculo;
-        
+
         if (kmRestante <= 0) {
-           alertas.push({
+          alertas.push({
             tipo: 'MANUTENCAO',
             nivel: 'VENCIDO',
             mensagem: `Manutenção por KM (${plano.descricao}) para ${plano.veiculo.placa} está VENCIDA (Prevista para ${plano.kmProximaManutencao} KM, veículo está com ${kmAtualVeiculo.toFixed(0)} KM).`
           });
         } else if (kmRestante <= limiteAlertaKM) {
-           alertas.push({
+          alertas.push({
             tipo: 'MANUTENCAO',
             nivel: 'ATENCAO',
             mensagem: `Manutenção por KM (${plano.descricao}) para ${plano.veiculo.placa} vence em ${kmRestante.toFixed(0)} KM (Próxima em ${plano.kmProximaManutencao} KM).`
@@ -1941,15 +1945,15 @@ app.get('/api/alertas', authenticateToken, async (req: AuthenticatedRequest, res
         }
       }
     }
-    
+
     // Ordena os alertas por nível (Vencidos primeiro)
     alertas.sort((a, b) => (a.nivel === 'VENCIDO' ? -1 : 1));
 
     res.status(200).json(alertas);
-    
+
   } catch (error) {
-     console.error("Erro GET /api/alertas:", error);
-     res.status(500).json({ error: 'Erro ao buscar alertas.' });
+    console.error("Erro GET /api/alertas:", error);
+    res.status(500).json({ error: 'Erro ao buscar alertas.' });
   }
 });
 
@@ -1967,11 +1971,11 @@ app.get('/api/relatorio/ranking-operadores', authenticateToken, async (req: Auth
     // 1. Define o período de filtro (Default: Mês atual)
     const anoAtual = new Date().getFullYear();
     const mesAtual = new Date().getMonth() + 1;
-    
+
     const anoNum = ano ? parseInt(ano as string) : anoAtual;
     const mesNum = mes ? parseInt(mes as string) : mesAtual;
 
-    const dataInicio = new Date(anoNum, mesNum - 1, 1); 
+    const dataInicio = new Date(anoNum, mesNum - 1, 1);
     const dataFim = new Date(anoNum, mesNum, 1);
     const filtroDataHora = { gte: dataInicio, lt: dataFim };
 
@@ -2009,7 +2013,7 @@ app.get('/api/relatorio/ranking-operadores', authenticateToken, async (req: Auth
       },
       select: {
         quantidade: true,
-        abastecimento: { 
+        abastecimento: {
           select: {
             operadorId: true
           }
@@ -2039,7 +2043,7 @@ app.get('/api/relatorio/ranking-operadores', authenticateToken, async (req: Auth
     const ranking = operadores.map(operador => {
       const totalKM = kmsPorOperador.get(operador.id) || 0;
       const totalLitros = litrosPorOperador.get(operador.id) || 0;
-      
+
       const kml = (totalLitros > 0) ? (totalKM / totalLitros) : 0;
 
       return {
@@ -2050,16 +2054,16 @@ app.get('/api/relatorio/ranking-operadores', authenticateToken, async (req: Auth
         kml
       };
     })
-    // Filtra motoristas que não tiveram atividade
-    .filter(op => op.totalKM > 0 || op.totalLitros > 0) 
-    // Ordena do melhor (maior KM/L) para o pior
-    .sort((a, b) => b.kml - a.kml); 
+      // Filtra motoristas que não tiveram atividade
+      .filter(op => op.totalKM > 0 || op.totalLitros > 0)
+      // Ordena do melhor (maior KM/L) para o pior
+      .sort((a, b) => b.kml - a.kml);
 
     res.status(200).json(ranking);
 
   } catch (error) {
-     console.error("Erro GET /api/relatorio/ranking-operadores:", error);
-     res.status(500).json({ error: 'Erro ao calcular ranking de operadores.' });
+    console.error("Erro GET /api/relatorio/ranking-operadores:", error);
+    res.status(500).json({ error: 'Erro ao calcular ranking de operadores.' });
   }
 });
 
