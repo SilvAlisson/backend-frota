@@ -1,0 +1,149 @@
+import { Response } from 'express';
+import { prisma } from '../lib/prisma';
+import { KmService } from '../services/KmService';
+import { AuthenticatedRequest } from '../middleware/auth';
+import { addDays } from '../utils/dateUtils'; // Import do novo utilitário
+
+export class RelatorioController {
+
+    static async sumario(req: AuthenticatedRequest, res: Response) {
+        if (req.user?.role !== 'ADMIN' && req.user?.role !== 'ENCARREGADO') return res.status(403).json({ error: 'Acesso negado' });
+        try {
+            const { ano, mes, veiculoId } = req.query;
+            const anoNum = ano ? parseInt(ano as string) : new Date().getFullYear();
+            const mesNum = mes ? parseInt(mes as string) : new Date().getMonth() + 1;
+
+            const dataInicio = new Date(anoNum, mesNum - 1, 1);
+            const dataFim = new Date(anoNum, mesNum, 1);
+
+            const filtroData = { gte: dataInicio, lt: dataFim };
+            const filtroVeiculo = veiculoId ? { veiculoId: String(veiculoId) } : {};
+
+            const [combustivel, aditivo, manutencao, litros, jornadas] = await Promise.all([
+                prisma.itemAbastecimento.aggregate({ _sum: { valorTotal: true }, where: { produto: { tipo: 'COMBUSTIVEL' }, abastecimento: { dataHora: filtroData, ...filtroVeiculo } } }),
+                prisma.itemAbastecimento.aggregate({ _sum: { valorTotal: true }, where: { produto: { tipo: 'ADITIVO' }, abastecimento: { dataHora: filtroData, ...filtroVeiculo } } }),
+                prisma.ordemServico.aggregate({ _sum: { custoTotal: true }, where: { data: filtroData, ...filtroVeiculo } }),
+                prisma.itemAbastecimento.aggregate({ _sum: { quantidade: true }, where: { produto: { tipo: 'COMBUSTIVEL' }, abastecimento: { dataHora: filtroData, ...filtroVeiculo } } }),
+                prisma.jornada.findMany({ where: { dataInicio: filtroData, kmFim: { not: null }, ...filtroVeiculo }, select: { kmInicio: true, kmFim: true } })
+            ]);
+
+            const kmTotal = jornadas.reduce((acc, j) => acc + ((j.kmFim ?? 0) - j.kmInicio), 0);
+            const totalGeral = (combustivel._sum.valorTotal || 0) + (aditivo._sum.valorTotal || 0) + (manutencao._sum.custoTotal || 0);
+            const litrosTotal = litros._sum.quantidade || 0;
+
+            res.json({
+                kpis: {
+                    custoTotalGeral: totalGeral,
+                    custoTotalCombustivel: combustivel._sum.valorTotal || 0,
+                    custoTotalAditivo: aditivo._sum.valorTotal || 0,
+                    custoTotalManutencao: manutencao._sum.custoTotal || 0,
+                    kmTotalRodado: kmTotal,
+                    litrosTotaisConsumidos: litrosTotal,
+                    consumoMedioKML: litrosTotal > 0 ? kmTotal / litrosTotal : 0,
+                    custoMedioPorKM: kmTotal > 0 ? totalGeral / kmTotal : 0,
+                }
+            });
+        } catch (e) { res.status(500).json({ error: 'Erro ao gerar sumário.' }); }
+    }
+
+    static async ranking(req: AuthenticatedRequest, res: Response) {
+        if (req.user?.role !== 'ADMIN' && req.user?.role !== 'ENCARREGADO') return res.status(403).json({ error: 'Acesso negado' });
+        try {
+            const { ano, mes } = req.query;
+            const anoNum = ano ? parseInt(ano as string) : new Date().getFullYear();
+            const mesNum = mes ? parseInt(mes as string) : new Date().getMonth() + 1;
+            const dataInicio = new Date(anoNum, mesNum - 1, 1);
+            const dataFim = new Date(anoNum, mesNum, 1);
+
+            // Busca jornadas e abastecimentos em paralelo
+            const [jornadas, abastecimentos] = await Promise.all([
+                prisma.jornada.findMany({
+                    where: { dataInicio: { gte: dataInicio, lt: dataFim }, kmFim: { not: null } },
+                    select: { operadorId: true, kmInicio: true, kmFim: true }
+                }),
+                prisma.itemAbastecimento.findMany({
+                    where: { produto: { tipo: 'COMBUSTIVEL' }, abastecimento: { dataHora: { gte: dataInicio, lt: dataFim } } },
+                    select: { quantidade: true, abastecimento: { select: { operadorId: true } } }
+                })
+            ]);
+
+            const kmsPorOperador = new Map<string, number>();
+            jornadas.forEach(j => {
+                const km = (j.kmFim ?? 0) - j.kmInicio;
+                if (km > 0) kmsPorOperador.set(j.operadorId, (kmsPorOperador.get(j.operadorId) || 0) + km);
+            });
+
+            const litrosPorOperador = new Map<string, number>();
+            abastecimentos.forEach(item => {
+                const opId = item.abastecimento.operadorId;
+                litrosPorOperador.set(opId, (litrosPorOperador.get(opId) || 0) + item.quantidade);
+            });
+
+            const operadores = await prisma.user.findMany({ where: { role: 'OPERADOR' }, select: { id: true, nome: true } });
+
+            const ranking = operadores.map(op => {
+                const km = kmsPorOperador.get(op.id) || 0;
+                const litros = litrosPorOperador.get(op.id) || 0;
+                return {
+                    id: op.id,
+                    nome: op.nome,
+                    totalKM: km,
+                    totalLitros: litros,
+                    kml: litros > 0 ? km / litros : 0
+                };
+            }).filter(r => r.totalKM > 0 || r.totalLitros > 0).sort((a, b) => b.kml - a.kml);
+
+            res.json(ranking);
+        } catch (error) {
+            res.status(500).json({ error: 'Erro ao gerar ranking.' });
+        }
+    }
+
+    static async alertas(req: AuthenticatedRequest, res: Response) {
+        if (req.user?.role !== 'ADMIN' && req.user?.role !== 'ENCARREGADO') return res.status(403).json({ error: 'Acesso negado' });
+        try {
+            const alertas = [];
+            const hoje = new Date();
+            const dataLimite = addDays(hoje, 30);
+            const limiteAlertaKM = 1500;
+
+            const veiculosDocs = await prisma.veiculo.findMany({
+                where: { OR: [{ vencimentoCiv: { lte: dataLimite } }, { vencimentoCipp: { lte: dataLimite } }] },
+                select: { id: true, placa: true, vencimentoCiv: true, vencimentoCipp: true }
+            });
+
+            for (const v of veiculosDocs) {
+                if (v.vencimentoCiv && v.vencimentoCiv <= dataLimite) {
+                    const vencido = v.vencimentoCiv < hoje;
+                    alertas.push({ tipo: 'DOCUMENTO', nivel: vencido ? 'VENCIDO' : 'ATENCAO', mensagem: `CIV ${v.placa} ${vencido ? 'venceu' : 'vence'}: ${v.vencimentoCiv.toLocaleDateString('pt-BR')}` });
+                }
+                if (v.vencimentoCipp && v.vencimentoCipp <= dataLimite) {
+                    const vencido = v.vencimentoCipp < hoje;
+                    alertas.push({ tipo: 'DOCUMENTO', nivel: vencido ? 'VENCIDO' : 'ATENCAO', mensagem: `CIPP ${v.placa} ${vencido ? 'venceu' : 'vence'}: ${v.vencimentoCipp.toLocaleDateString('pt-BR')}` });
+                }
+            }
+
+            const planos = await prisma.planoManutencao.findMany({ include: { veiculo: { select: { id: true, placa: true } } } });
+
+            for (const p of planos) {
+                if (p.tipoIntervalo === 'TEMPO' && p.dataProximaManutencao && p.dataProximaManutencao <= dataLimite) {
+                    const vencido = p.dataProximaManutencao < hoje;
+                    alertas.push({ tipo: 'MANUTENCAO', nivel: vencido ? 'VENCIDO' : 'ATENCAO', mensagem: `Manutenção TEMPO (${p.descricao}) ${p.veiculo.placa} ${vencido ? 'venceu' : 'vence'}: ${p.dataProximaManutencao.toLocaleDateString('pt-BR')}` });
+                }
+                if (p.tipoIntervalo === 'KM' && p.kmProximaManutencao) {
+                    const kmAtual = await KmService.getUltimoKMRegistrado(p.veiculo.id);
+                    const kmRestante = p.kmProximaManutencao - kmAtual;
+
+                    if (kmRestante <= 0) {
+                        alertas.push({ tipo: 'MANUTENCAO', nivel: 'VENCIDO', mensagem: `Manutenção KM (${p.descricao}) ${p.veiculo.placa} VENCIDA (KM atual: ${kmAtual})` });
+                    } else if (kmRestante <= limiteAlertaKM) {
+                        alertas.push({ tipo: 'MANUTENCAO', nivel: 'ATENCAO', mensagem: `Manutenção KM (${p.descricao}) ${p.veiculo.placa} vence em ${kmRestante.toFixed(0)} KM` });
+                    }
+                }
+            }
+
+            alertas.sort((a, b) => (a.nivel === 'VENCIDO' ? -1 : 1));
+            res.json(alertas);
+        } catch (e) { res.status(500).json({ error: 'Erro ao buscar alertas.' }); }
+    }
+}
