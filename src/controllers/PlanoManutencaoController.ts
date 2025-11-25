@@ -3,7 +3,6 @@ import { prisma } from '../lib/prisma';
 import { KmService } from '../services/KmService';
 import { AuthenticatedRequest } from '../middleware/auth';
 
-// AQUI ESTAVA O ERRO: O nome da classe deve ser PlanoManutencaoController
 export class PlanoManutencaoController {
 
     static async create(req: AuthenticatedRequest, res: Response) {

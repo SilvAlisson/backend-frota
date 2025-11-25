@@ -140,7 +140,7 @@ export class JornadaController {
         try {
             const jornadas = await prisma.jornada.findMany({
                 where: {
-                    operadorId: userId, // Agora garantimos que é string
+                    operadorId: userId,
                     kmFim: null
                 },
                 include: { veiculo: true, encarregado: true },

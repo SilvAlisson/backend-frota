@@ -1,10 +1,10 @@
 import express from 'express';
 import cors from 'cors';
-import 'dotenv/config'; // Garante que o .env é carregado
+import 'dotenv/config';
 
 // ================== IMPORTS DE ROTAS ==================
 import authRoutes from './routes/auth.routes';
-import veiculoRoutes from './routes/veiculo.routes';
+import veiculoRoutes from './routes/Veiculo.routes';
 import abastecimentoRoutes from './routes/abastecimento.routes';
 import jornadaRoutes from './routes/jornada.routes';
 import manutencaoRoutes from './routes/manutencao.routes';

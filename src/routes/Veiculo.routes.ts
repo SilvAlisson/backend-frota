@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { VeiculoController } from '../controllers/veiculoController';
+import { VeiculoController } from '../controllers/VeiculoController';
 import { authenticateToken } from '../middleware/auth';
 
 const router = Router();

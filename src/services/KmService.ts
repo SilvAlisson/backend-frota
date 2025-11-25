@@ -39,8 +39,6 @@ export class KmService {
             // LOG PROFISSIONAL (Futuramente usar Winston/Pino)
             console.error(`[CRITICAL] Falha ao validar KM do veículo ${veiculoId}:`, error);
 
-            // NÃO RETORNE 0. LANCE O ERRO.
-            // Isso fará o Controller pegar o erro e retornar HTTP 500, impedindo a operação.
             throw new Error("Não foi possível validar a quilometragem do veículo. Operação abortada por segurança.");
         }
     }
