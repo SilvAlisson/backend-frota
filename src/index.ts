@@ -27,23 +27,7 @@ const port = process.env.PORT || 3001;
 app.use(express.json());
 
 // Configuração de CORS (Mantendo a sua whitelist original)
-const whiteList = [
-  'http://localhost:5173',
-  'https://frontend-frota-2l0kp210m-alissons-projects-e136c5ab.vercel.app',
-  'https://frontend-frota-ioc2w8xrs-alissons-projects-e136c5ab.vercel.app',
-  'https://frontend-frota.vercel.app',
-  'https://klinfrota.vercel.app/'
-];
-
-app.use(cors({
-  origin: function (origin, callback) {
-    if (!origin || whiteList.indexOf(origin) !== -1) {
-      callback(null, true);
-    } else {
-      callback(new Error('Not allowed by CORS'));
-    }
-  }
-}));
+app.use(cors());
 
 // ================== DEFINIÇÃO DE ROTAS (API V1) ==================
 
