@@ -53,12 +53,12 @@ export class UserController {
     static async getById(req: AuthenticatedRequest, res: Response) {
         if (req.user?.role !== 'ADMIN') return res.status(403).json({ error: 'Acesso negado.' });
 
-        const { id } = req.params;
+        const id = req.params.id; // Pega diretamente
         if (!id) return res.status(400).json({ error: 'ID não fornecido.' });
 
         try {
             const user = await prisma.user.findUnique({
-                where: { id },
+                where: { id }, // O TypeScript agora entende que id é string devido à verificação acima
                 select: { id: true, nome: true, email: true, role: true, matricula: true }
             });
             if (!user) return res.status(404).json({ error: 'Usuário não encontrado' });
@@ -71,7 +71,7 @@ export class UserController {
     static async update(req: AuthenticatedRequest, res: Response) {
         if (req.user?.role !== 'ADMIN') return res.status(403).json({ error: 'Acesso negado.' });
 
-        const { id } = req.params;
+        const id = req.params.id;
         if (!id) return res.status(400).json({ error: 'ID não fornecido.' });
 
         try {
@@ -100,7 +100,7 @@ export class UserController {
     static async delete(req: AuthenticatedRequest, res: Response) {
         if (req.user?.role !== 'ADMIN') return res.status(403).json({ error: 'Acesso negado.' });
 
-        const { id } = req.params;
+        const id = req.params.id;
         if (!id) return res.status(400).json({ error: 'ID não fornecido.' });
 
         if (req.user?.userId === id) return res.status(400).json({ error: 'Não pode remover a si mesmo.' });

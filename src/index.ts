@@ -1,10 +1,10 @@
 import express from 'express';
 import cors from 'cors';
-import 'dotenv/config'; // Garante que o .env é carregado
+import 'dotenv/config';
 
 // ================== IMPORTS DE ROTAS ==================
 import authRoutes from './routes/auth.routes';
-import veiculoRoutes from './routes/veiculo.routes';
+import veiculoRoutes from './routes/Veiculo.routes';
 import abastecimentoRoutes from './routes/abastecimento.routes';
 import jornadaRoutes from './routes/jornada.routes';
 import manutencaoRoutes from './routes/manutencao.routes';
@@ -26,20 +26,21 @@ const port = process.env.PORT || 3001;
 // ================== MIDDLEWARES GLOBAIS ==================
 app.use(express.json());
 
-// Configuração de CORS (Mantendo a sua whitelist original)
-const whiteList = [
-  'http://localhost:5173',
-  'https://frontend-frota-2l0kp210m-alissons-projects-e136c5ab.vercel.app',
-  'https://frontend-frota-ioc2w8xrs-alissons-projects-e136c5ab.vercel.app',
-  'https://frontend-frota.vercel.app'
-];
+// ================== CONFIGURAÇÃO DE CORS ==================
+// Permite definir origens via .env (separadas por vírgula) ou usa '*' como fallback (dev)
+const allowedOrigins = process.env.CORS_ORIGINS
+  ? process.env.CORS_ORIGINS.split(',')
+  : ['*']; // Cuidado: '*' permite tudo. Em produção, defina CORS_ORIGINS.
 
 app.use(cors({
   origin: function (origin, callback) {
-    if (!origin || whiteList.indexOf(origin) !== -1) {
+    // Permite requisições sem 'origin' (ex: Postman, Mobile Apps)
+    if (!origin) return callback(null, true);
+
+    if (allowedOrigins.includes('*') || allowedOrigins.indexOf(origin) !== -1) {
       callback(null, true);
     } else {
-      callback(new Error('Not allowed by CORS'));
+      callback(new Error('Bloqueado pela política de CORS'));
     }
   }
 }));
@@ -93,4 +94,5 @@ app.get('/health', (req, res) => {
 // ================== INICIALIZAÇÃO DO SERVIDOR ==================
 app.listen(port, () => {
   console.log(`✅ Servidor Backend (MVC) rodando na porta ${port}`);
+  console.log(`🌍 CORS permitido para: ${allowedOrigins.join(', ')}`);
 });
