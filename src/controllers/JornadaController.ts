@@ -1,6 +1,7 @@
 import { Response } from 'express';
 import { prisma } from '../lib/prisma';
 import { KmService } from '../services/KmService';
+import { JornadaService } from '../services/JornadaService';
 import { AuthenticatedRequest } from '../middleware/auth';
 
 export class JornadaController {
@@ -162,6 +163,21 @@ export class JornadaController {
         } catch (error) {
             console.error("Erro ao listar minhas jornadas:", error);
             res.status(500).json({ error: 'Erro ao buscar suas jornadas.' });
+        }
+    }
+
+    static async verificarTimeouts(req: AuthenticatedRequest, res: Response) {
+        try {
+            // Chama o serviço que contém a lógica pesada
+            await JornadaService.fecharJornadasVencidas();
+
+            res.json({
+                message: 'Verificação de timeouts executada com sucesso.',
+                timestamp: new Date()
+            });
+        } catch (error) {
+            console.error("Erro ao processar timeouts:", error);
+            res.status(500).json({ error: 'Erro interno ao processar timeouts.' });
         }
     }
 }

@@ -9,5 +9,6 @@ router.post('/iniciar', JornadaController.iniciar);
 router.put('/finalizar/:id', JornadaController.finalizar);
 router.get('/abertas', JornadaController.listarAbertas);
 router.get('/minhas-abertas-operador', JornadaController.listarMinhasAbertas);
+router.post('/verificar-timeouts', JornadaController.verificarTimeouts);
 
 export default router;
