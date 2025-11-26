@@ -25,7 +25,6 @@ export class AuthController {
                 return res.status(401).json({ error: 'Credenciais inválidas' });
             }
 
-            // O TOKEN_SECRET aqui já é garantidamente uma string
             const token = jwt.sign({ userId: user.id, role: user.role }, TOKEN_SECRET, { expiresIn: '8h' });
 
             res.status(200).json({
