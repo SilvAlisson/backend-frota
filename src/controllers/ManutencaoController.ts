@@ -108,7 +108,6 @@ export class ManutencaoController {
         if (!id) return res.status(400).json({ error: 'ID da OS não fornecido.' });
 
         try {
-            // Deletar itens primeiro (cascade manual se necessário ou pelo schema)
             await prisma.itemOrdemServico.deleteMany({ where: { ordemServicoId: id } });
             await prisma.ordemServico.delete({ where: { id } });
             res.json({ message: 'Manutenção removida.' });

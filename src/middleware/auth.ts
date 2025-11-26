@@ -1,8 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 
-// Garantia de segurança: O servidor já teria crashado no index.ts se isso não existisse,
-// mas o TypeScript precisa de saber que é string.
 const SECRET_KEY = process.env.TOKEN_SECRET!;
 
 export interface AuthenticatedRequest extends Request {

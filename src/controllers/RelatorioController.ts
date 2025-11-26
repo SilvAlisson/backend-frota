@@ -2,7 +2,7 @@ import { Response } from 'express';
 import { prisma } from '../lib/prisma';
 import { KmService } from '../services/KmService';
 import { AuthenticatedRequest } from '../middleware/auth';
-import { addDays } from '../utils/dateUtils'; // Import do novo utilitário
+import { addDays } from '../utils/dateUtils';
 
 export class RelatorioController {
 
