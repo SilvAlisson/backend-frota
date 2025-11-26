@@ -1,14 +1,31 @@
 import { Router } from 'express';
 import { UserController } from '../controllers/UserController';
-import { authenticateToken } from '../middleware/auth';
+import { authenticateToken, authorize } from '../middleware/auth';
+import { validate } from '../middleware/validate';
+import { registerUserSchema } from '../schemas/auth.schemas';
 
 const router = Router();
+
+// Middleware global de autenticação para todas as rotas abaixo
 router.use(authenticateToken);
 
-router.post('/register', UserController.create);
+// Apenas ADMIN pode criar usuários + Validação Zod
+router.post('/register',
+    authorize(['ADMIN']),
+    validate(registerUserSchema),
+    UserController.create
+);
+
+// Qualquer autenticado vê a lista (ou restrinja se quiser)
 router.get('/', UserController.list);
-router.get('/:id', UserController.getById);
-router.put('/:id', UserController.update);
-router.delete('/:id', UserController.delete);
+
+// Apenas ADMIN vê detalhes
+router.get('/:id', authorize(['ADMIN']), UserController.getById);
+
+// Apenas ADMIN edita
+router.put('/:id', authorize(['ADMIN']), UserController.update);
+
+// Apenas ADMIN deleta
+router.delete('/:id', authorize(['ADMIN']), UserController.delete);
 
 export default router;

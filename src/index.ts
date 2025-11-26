@@ -26,10 +26,26 @@ const port = process.env.PORT || 3001;
 // ================== MIDDLEWARES GLOBAIS ==================
 app.use(express.json());
 
-// Configuração de CORS (Mantendo a sua whitelist original)
-app.use(cors());
+// ================== CONFIGURAÇÃO DE CORS ==================
+// Permite definir origens via .env (separadas por vírgula) ou usa '*' como fallback (dev)
+const allowedOrigins = process.env.CORS_ORIGINS
+  ? process.env.CORS_ORIGINS.split(',')
+  : ['*'];
 
-// ================== DEFINIÇÃO DE ROTAS (API V1) ==================
+app.use(cors({
+  origin: function (origin, callback) {
+    // Permite requisições sem 'origin'
+    if (!origin) return callback(null, true);
+
+    if (allowedOrigins.includes('*') || allowedOrigins.indexOf(origin) !== -1) {
+      callback(null, true);
+    } else {
+      callback(new Error('Bloqueado pela política de CORS'));
+    }
+  }
+}));
+
+// ================== DEFINIÇÃO DE ROTAS ==================
 
 // Autenticação
 app.use('/api/auth', authRoutes);
@@ -78,4 +94,5 @@ app.get('/health', (req, res) => {
 // ================== INICIALIZAÇÃO DO SERVIDOR ==================
 app.listen(port, () => {
   console.log(`✅ Servidor Backend (MVC) rodando na porta ${port}`);
+  console.log(`🌍 CORS permitido para: ${allowedOrigins.join(', ')}`);
 });
