@@ -3,7 +3,6 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.PlanoManutencaoController = void 0;
 const prisma_1 = require("../lib/prisma");
 const KmService_1 = require("../services/KmService");
-// AQUI ESTAVA O ERRO: O nome da classe deve ser PlanoManutencaoController
 class PlanoManutencaoController {
     static async create(req, res) {
         if (req.user?.role !== 'ADMIN') {
