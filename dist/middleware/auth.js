@@ -5,8 +5,6 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.authorize = exports.authenticateToken = void 0;
 const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
-// Garantia de segurança: O servidor já teria crashado no index.ts se isso não existisse,
-// mas o TypeScript precisa de saber que é string.
 const SECRET_KEY = process.env.TOKEN_SECRET;
 const authenticateToken = (req, res, next) => {
     const authHeader = req.headers['authorization'];

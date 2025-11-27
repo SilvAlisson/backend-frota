@@ -26,25 +26,31 @@ export class JornadaController {
                 });
             }
 
-            // 2. Regra de Negócio: Fechar jornada anterior "esquecida" deste veículo
-            // Se o veículo já tem uma jornada aberta, fechamo-la com o KM atual de início
-            const ultimaJornadaVeiculo = await prisma.jornada.findFirst({
-                where: { veiculoId, kmFim: null },
-                orderBy: { dataInicio: 'desc' },
+            // 2. Regra de Negócio (CORRIGIDA): Fechar TODAS as jornadas anteriores "esquecidas"
+            // Busca qualquer jornada aberta para este veículo
+            const jornadasAbertasAnteriores = await prisma.jornada.findMany({
+                where: { 
+                    veiculoId: veiculoId, 
+                    kmFim: null 
+                },
+                orderBy: { dataInicio: 'asc' } // Fecha da mais antiga para a mais nova
             });
 
             const operacoes = [];
 
-            if (ultimaJornadaVeiculo) {
-                console.log(`[Auto-Close] Fechando jornada anterior ${ultimaJornadaVeiculo.id} ao iniciar nova.`);
-                operacoes.push(prisma.jornada.update({
-                    where: { id: ultimaJornadaVeiculo.id },
-                    data: {
-                        kmFim: kmInicioFloat,
-                        dataFim: new Date(),
-                        observacoes: (ultimaJornadaVeiculo.observacoes || '') + ' [Fechamento automático: Nova jornada iniciada]'
-                    },
-                }));
+            if (jornadasAbertasAnteriores.length > 0) {
+                console.log(`[Auto-Close] Encontradas ${jornadasAbertasAnteriores.length} jornadas antigas abertas para veículo ${veiculoId}. Fechando todas.`);
+                
+                for (const jornadaAntiga of jornadasAbertasAnteriores) {
+                    operacoes.push(prisma.jornada.update({
+                        where: { id: jornadaAntiga.id },
+                        data: {
+                            kmFim: kmInicioFloat, // Fecha com o KM de início da nova jornada
+                            dataFim: new Date(),
+                            observacoes: (jornadaAntiga.observacoes || '') + ' [Fechamento automático: Nova jornada iniciada]'
+                        },
+                    }));
+                }
             }
 
             // 3. Criar a nova jornada

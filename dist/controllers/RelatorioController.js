@@ -3,7 +3,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.RelatorioController = void 0;
 const prisma_1 = require("../lib/prisma");
 const KmService_1 = require("../services/KmService");
-const dateUtils_1 = require("../utils/dateUtils"); // Import do novo utilitário
+const dateUtils_1 = require("../utils/dateUtils");
 class RelatorioController {
     static async sumario(req, res) {
         if (req.user?.role !== 'ADMIN' && req.user?.role !== 'ENCARREGADO')

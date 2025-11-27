@@ -5,10 +5,10 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = __importDefault(require("express"));
 const cors_1 = __importDefault(require("cors"));
-require("dotenv/config"); // Garante que o .env é carregado
+require("dotenv/config");
 // ================== IMPORTS DE ROTAS ==================
 const auth_routes_1 = __importDefault(require("./routes/auth.routes"));
-const veiculo_routes_1 = __importDefault(require("./routes/veiculo.routes"));
+const Veiculo_routes_1 = __importDefault(require("./routes/Veiculo.routes"));
 const abastecimento_routes_1 = __importDefault(require("./routes/abastecimento.routes"));
 const jornada_routes_1 = __importDefault(require("./routes/jornada.routes"));
 const manutencao_routes_1 = __importDefault(require("./routes/manutencao.routes"));
@@ -26,32 +26,33 @@ const app = (0, express_1.default)();
 const port = process.env.PORT || 3001;
 // ================== MIDDLEWARES GLOBAIS ==================
 app.use(express_1.default.json());
-// Configuração de CORS (Mantendo a sua whitelist original)
-const whiteList = [
-    'http://localhost:5173',
-    'https://frontend-frota-2l0kp210m-alissons-projects-e136c5ab.vercel.app',
-    'https://frontend-frota-ioc2w8xrs-alissons-projects-e136c5ab.vercel.app',
-    'https://frontend-frota.vercel.app'
-];
+// ================== CONFIGURAÇÃO DE CORS ==================
+// Permite definir origens via .env (separadas por vírgula) ou usa '*' como fallback (dev)
+const allowedOrigins = process.env.CORS_ORIGINS
+    ? process.env.CORS_ORIGINS.split(',')
+    : ['*'];
 app.use((0, cors_1.default)({
     origin: function (origin, callback) {
-        if (!origin || whiteList.indexOf(origin) !== -1) {
+        // Permite requisições sem 'origin'
+        if (!origin)
+            return callback(null, true);
+        if (allowedOrigins.includes('*') || allowedOrigins.indexOf(origin) !== -1) {
             callback(null, true);
         }
         else {
-            callback(new Error('Not allowed by CORS'));
+            callback(new Error('Bloqueado pela política de CORS'));
         }
     }
 }));
-// ================== DEFINIÇÃO DE ROTAS (API V1) ==================
+// ================== DEFINIÇÃO DE ROTAS ==================
 // Autenticação
 app.use('/api/auth', auth_routes_1.default);
 // Usuários
 app.use('/api/user', user_routes_1.default);
 app.use('/api/users', user_routes_1.default);
 // Veículos
-app.use('/api/veiculo', veiculo_routes_1.default);
-app.use('/api/veiculos', veiculo_routes_1.default);
+app.use('/api/veiculo', Veiculo_routes_1.default);
+app.use('/api/veiculos', Veiculo_routes_1.default);
 // Abastecimentos
 app.use('/api/abastecimento', abastecimento_routes_1.default);
 app.use('/api/abastecimentos', abastecimento_routes_1.default);
@@ -80,5 +81,6 @@ app.get('/health', (req, res) => {
 // ================== INICIALIZAÇÃO DO SERVIDOR ==================
 app.listen(port, () => {
     console.log(`✅ Servidor Backend (MVC) rodando na porta ${port}`);
+    console.log(`🌍 CORS permitido para: ${allowedOrigins.join(', ')}`);
 });
 //# sourceMappingURL=index.js.map
