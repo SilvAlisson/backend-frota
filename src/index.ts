@@ -1,10 +1,12 @@
 import express from 'express';
 import cors from 'cors';
 import 'dotenv/config';
+import cron from 'node-cron';
+import { JornadaService } from './services/JornadaService';
 
 // ================== IMPORTS DE ROTAS ==================
 import authRoutes from './routes/auth.routes';
-import veiculoRoutes from './routes/Veiculo.routes';
+import veiculoRoutes from './routes/veiculo.routes';
 import abastecimentoRoutes from './routes/abastecimento.routes';
 import jornadaRoutes from './routes/jornada.routes';
 import manutencaoRoutes from './routes/manutencao.routes';
@@ -89,6 +91,12 @@ app.use('/api', relatorioRoutes);
 // Rota de Health Check (Para monitoramento no Render)
 app.get('/health', (req, res) => {
   res.json({ status: 'UP', timestamp: new Date() });
+});
+
+// Roda a cada hora (minuto 0) para fechar jornadas com mais de 17h abertas
+cron.schedule('0 * * * *', async () => {
+  console.log('⏰ [Cron] Executando verificação automática de jornadas vencidas...');
+  await JornadaService.fecharJornadasVencidas();
 });
 
 // ================== INICIALIZAÇÃO DO SERVIDOR ==================
