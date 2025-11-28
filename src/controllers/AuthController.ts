@@ -3,14 +3,14 @@ import { prisma } from '../lib/prisma';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
+import { AuthenticatedRequest } from '../middleware/auth';
 
 // 1. Verificação de segurança no início do arquivo
 if (!process.env.TOKEN_SECRET) {
     console.error("Erro Crítico: TOKEN_SECRET não definido no ficheiro .env");
-    process.exit(1); // Encerra a aplicação se não houver segredo
+    process.exit(1);
 }
 
-// 2. Atribuição segura: O TypeScript agora sabe que é sempre uma string
 const TOKEN_SECRET: string = process.env.TOKEN_SECRET;
 
 export class AuthController {
@@ -59,28 +59,24 @@ export class AuthController {
         }
     }
 
-    static async generateToken(req: Request, res: Response) {
+    // Usar AuthenticatedRequest
+    static async generateToken(req: AuthenticatedRequest, res: Response) {
         try {
+            // 🔒 VALIDAÇÃO DE SEGURANÇA (ADMIN ou ENCARREGADO)
+            if (req.user?.role !== 'ADMIN' && req.user?.role !== 'ENCARREGADO') {
+                return res.status(403).json({ error: 'Acesso negado. Apenas gestores podem gerar QR Code.' });
+            }
+
             const { id } = req.params;
+            if (!id) return res.status(400).json({ error: 'ID necessário.' });
 
-            if (!id) {
-                return res.status(400).json({ error: 'ID de utilizador necessário.' });
-            }
-
-            // Verificar se o utilizador existe e se é OPERADOR
-            const userToCheck = await prisma.user.findUnique({
-                where: { id }
-            });
-
-            if (!userToCheck) {
-                return res.status(404).json({ error: 'Utilizador não encontrado.' });
-            }
+            const userToCheck = await prisma.user.findUnique({ where: { id } });
+            if (!userToCheck) return res.status(404).json({ error: 'Utilizador não encontrado.' });
 
             if (userToCheck.role !== 'OPERADOR') {
                 return res.status(400).json({ error: 'Apenas operadores podem ter token de acesso rápido.' });
             }
 
-            // Gerar e Atualizar o token
             const token = crypto.randomBytes(32).toString('hex');
 
             await prisma.user.update({

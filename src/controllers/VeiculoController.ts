@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { prisma } from '../lib/prisma';
 import { Prisma } from '@prisma/client';
 import { KmService } from '../services/KmService';
+import { AuthenticatedRequest } from '../middleware/auth';
 
 // Helper function to format date
 const formatDateToInput = (date: Date | null | undefined): string | null => {
@@ -13,7 +14,12 @@ const formatDateToInput = (date: Date | null | undefined): string | null => {
 
 export class VeiculoController {
 
-    static async create(req: Request, res: Response) {
+    // Usar AuthenticatedRequest aqui
+    static async create(req: AuthenticatedRequest, res: Response) {
+        // 🔒 BLOQUEIO: Só Admin (RH/Contratos futuramente)
+        if (req.user?.role !== 'ADMIN') {
+            return res.status(403).json({ error: 'Acesso negado. Apenas administradores podem gerir a frota.' });
+        }
         try {
             const {
                 placa, modelo, ano, tipoCombustivel, capacidadeTanque, tipoVeiculo, vencimentoCiv, vencimentoCipp
@@ -45,6 +51,7 @@ export class VeiculoController {
         }
     }
 
+    // Listagem pública para usuários logados
     static async list(req: Request, res: Response) {
         try {
             const veiculos = await prisma.veiculo.findMany({
@@ -65,7 +72,6 @@ export class VeiculoController {
             const veiculo = await prisma.veiculo.findUnique({ where: { id } });
             if (!veiculo) return res.status(404).json({ error: 'Veículo não encontrado.' });
 
-            // Now 'id' is guaranteed to be a string
             const ultimoKm = await KmService.getUltimoKMRegistrado(id);
 
             const veiculoFormatado = {
@@ -82,7 +88,13 @@ export class VeiculoController {
         }
     }
 
-    static async update(req: Request, res: Response) {
+    // Usar AuthenticatedRequest aqui
+    static async update(req: AuthenticatedRequest, res: Response) {
+        // 🔒 BLOQUEIO
+        if (req.user?.role !== 'ADMIN') {
+            return res.status(403).json({ error: 'Acesso negado. Apenas administradores podem gerir a frota.' });
+        }
+
         const { id } = req.params;
         if (!id) return res.status(400).json({ error: 'ID inválido' });
 
@@ -115,7 +127,13 @@ export class VeiculoController {
         }
     }
 
-    static async delete(req: Request, res: Response) {
+    // Usar AuthenticatedRequest aqui
+    static async delete(req: AuthenticatedRequest, res: Response) {
+        // 🔒 BLOQUEIO
+        if (req.user?.role !== 'ADMIN') {
+            return res.status(403).json({ error: 'Acesso negado. Apenas administradores podem gerir a frota.' });
+        }
+
         const { id } = req.params;
         if (!id) return res.status(400).json({ error: 'ID inválido' });
 
