@@ -1,7 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
-
-const SECRET_KEY = process.env.TOKEN_SECRET!;
+import { env } from '../config/env';
 
 export interface AuthenticatedRequest extends Request {
   user?: { userId: string; role: string };
@@ -15,7 +14,8 @@ export const authenticateToken = (req: AuthenticatedRequest, res: Response, next
     return res.status(401).json({ error: 'Token não fornecido.' });
   }
 
-  jwt.verify(token, SECRET_KEY, (err: any, user: any) => {
+  // Uso centralizado do segredo
+  jwt.verify(token, env.TOKEN_SECRET, (err: any, user: any) => {
     if (err) {
       if (err.name === 'TokenExpiredError') {
         return res.status(401).json({ error: 'Sessão expirada. Faça login novamente.' });
