@@ -16,10 +16,10 @@ datasource db {
 
 // Configuração global de alertas (Editável pelo Admin/Coordenador)
 model ConfiguracaoSistema {
-  id                   String   @id @default(cuid())
-  diasAntecedenciaAlerta Int    @default(30)   // Ex: 30 dias para vencer CNH/Docs
+  id                     String   @id @default(cuid())
+  diasAntecedenciaAlerta Int      @default(30)   // Ex: 30 dias para vencer CNH/Docs
   kmAntecedenciaAlerta   Float    @default(1500) // Ex: 1500 km para manutenção
-  updatedAt            DateTime @updatedAt
+  updatedAt              DateTime @updatedAt
 }
 
 // Treinamentos e Cursos (Módulo RH)
@@ -159,7 +159,10 @@ model Abastecimento {
   id                String   @id @default(cuid())
   dataHora          DateTime
   kmOdometro        Float
-  custoTotal        Float
+  
+  // 💰 ALTERADO: Float -> Decimal para precisão monetária
+  custoTotal        Decimal  @db.Decimal(10, 2)
+  
   placaCartaoUsado  String?
   observacoes       String?
   justificativa     String?  // Caso o consumo esteja fora da média
@@ -179,10 +182,13 @@ model Abastecimento {
 }
 
 model ItemAbastecimento {
-  id              String @id @default(cuid())
+  id              String   @id @default(cuid())
   quantidade      Float
-  valorPorUnidade Float
-  valorTotal      Float
+  
+  // 💰 ALTERADO: Float -> Decimal para precisão monetária
+  valorPorUnidade Decimal  @db.Decimal(10, 2)
+  valorTotal      Decimal  @db.Decimal(10, 2)
+  
   createdAt       DateTime @default(now())
 
   abastecimento   Abastecimento @relation(fields: [abastecimentoId], references: [id])
@@ -200,7 +206,10 @@ model OrdemServico {
   id                 String         @id @default(cuid())
   data               DateTime
   kmAtual            Float
-  custoTotal         Float
+  
+  // 💰 ALTERADO: Float -> Decimal para precisão monetária
+  custoTotal         Decimal        @db.Decimal(10, 2)
+  
   tipo               TipoManutencao
   observacoes        String?
   fotoComprovanteUrl String?
@@ -219,10 +228,12 @@ model OrdemServico {
 }
 
 model ItemOrdemServico {
-  id              String @id @default(cuid())
+  id              String  @id @default(cuid())
   quantidade      Float
-  valorPorUnidade Float
-  valorTotal      Float
+  
+  // 💰 ALTERADO: Float -> Decimal para precisão monetária
+  valorPorUnidade Decimal @db.Decimal(10, 2)
+  valorTotal      Decimal @db.Decimal(10, 2)
   
   ordemServico    OrdemServico @relation(fields: [ordemServicoId], references: [id])
   ordemServicoId  String

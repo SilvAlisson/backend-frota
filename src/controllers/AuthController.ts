@@ -4,14 +4,7 @@ import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
 import { AuthenticatedRequest } from '../middleware/auth';
-
-// 1. Verificação de segurança no início do arquivo
-if (!process.env.TOKEN_SECRET) {
-    console.error("Erro Crítico: TOKEN_SECRET não definido no ficheiro .env");
-    process.exit(1);
-}
-
-const TOKEN_SECRET: string = process.env.TOKEN_SECRET;
+import { env } from '../config/env'; // Importação centralizada das configurações
 
 export class AuthController {
 
@@ -25,7 +18,12 @@ export class AuthController {
                 return res.status(401).json({ error: 'Credenciais inválidas' });
             }
 
-            const token = jwt.sign({ userId: user.id, role: user.role }, TOKEN_SECRET, { expiresIn: '8h' });
+            // Uso seguro do env.TOKEN_SECRET (já validado ao iniciar o app)
+            const token = jwt.sign(
+                { userId: user.id, role: user.role },
+                env.TOKEN_SECRET,
+                { expiresIn: '8h' }
+            );
 
             res.status(200).json({
                 message: 'Login bem-sucedido',
@@ -46,7 +44,12 @@ export class AuthController {
             const user = await prisma.user.findFirst({ where: { loginToken } });
             if (!user) return res.status(401).json({ error: 'Token inválido.' });
 
-            const token = jwt.sign({ userId: user.id, role: user.role }, TOKEN_SECRET, { expiresIn: '8h' });
+            // Uso seguro do env.TOKEN_SECRET
+            const token = jwt.sign(
+                { userId: user.id, role: user.role },
+                env.TOKEN_SECRET,
+                { expiresIn: '8h' }
+            );
 
             res.status(200).json({
                 message: 'Login por token OK',
@@ -59,7 +62,6 @@ export class AuthController {
         }
     }
 
-    // Usar AuthenticatedRequest
     static async generateToken(req: AuthenticatedRequest, res: Response) {
         try {
             // 🔒 VALIDAÇÃO DE SEGURANÇA (ADMIN ou ENCARREGADO)
