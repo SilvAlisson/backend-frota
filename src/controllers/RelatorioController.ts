@@ -3,6 +3,7 @@ import { prisma } from '../lib/prisma';
 import { KmService } from '../services/KmService';
 import { AuthenticatedRequest } from '../middleware/auth';
 import { addDays } from '../utils/dateUtils';
+import { Prisma } from '@prisma/client'; // Importar Prisma para tipos se necessário
 
 export class RelatorioController {
 
@@ -28,22 +29,31 @@ export class RelatorioController {
             ]);
 
             const kmTotal = jornadas.reduce((acc, j) => acc + ((j.kmFim ?? 0) - j.kmInicio), 0);
-            const totalGeral = (combustivel._sum.valorTotal || 0) + (aditivo._sum.valorTotal || 0) + (manutencao._sum.custoTotal || 0);
+
+            // Conversão explícita de Decimal para Number para permitir a soma
+            const totalCombustivel = Number(combustivel._sum.valorTotal || 0);
+            const totalAditivo = Number(aditivo._sum.valorTotal || 0);
+            const totalManutencao = Number(manutencao._sum.custoTotal || 0);
+
+            const totalGeral = totalCombustivel + totalAditivo + totalManutencao;
             const litrosTotal = litros._sum.quantidade || 0;
 
             res.json({
                 kpis: {
                     custoTotalGeral: totalGeral,
-                    custoTotalCombustivel: combustivel._sum.valorTotal || 0,
-                    custoTotalAditivo: aditivo._sum.valorTotal || 0,
-                    custoTotalManutencao: manutencao._sum.custoTotal || 0,
+                    custoTotalCombustivel: totalCombustivel,
+                    custoTotalAditivo: totalAditivo,
+                    custoTotalManutencao: totalManutencao,
                     kmTotalRodado: kmTotal,
                     litrosTotaisConsumidos: litrosTotal,
                     consumoMedioKML: litrosTotal > 0 ? kmTotal / litrosTotal : 0,
                     custoMedioPorKM: kmTotal > 0 ? totalGeral / kmTotal : 0,
                 }
             });
-        } catch (e) { res.status(500).json({ error: 'Erro ao gerar sumário.' }); }
+        } catch (e) {
+            console.error(e); // Log do erro para debug
+            res.status(500).json({ error: 'Erro ao gerar sumário.' });
+        }
     }
 
     static async ranking(req: AuthenticatedRequest, res: Response) {
