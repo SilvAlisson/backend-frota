@@ -4,7 +4,6 @@ import 'dotenv/config';
 import cron from 'node-cron';
 import { JornadaService } from './services/JornadaService';
 import { env } from './config/env';
-import cargoRoutes from './routes/cargo.routes';
 
 // ================== IMPORTS DE ROTAS ==================
 import authRoutes from './routes/auth.routes';
@@ -17,6 +16,8 @@ import produtoRoutes from './routes/produto.routes';
 import fornecedorRoutes from './routes/fornecedor.routes';
 import planoManutencaoRoutes from './routes/planoManutencao.routes';
 import relatorioRoutes from './routes/relatorio.routes';
+import cargoRoutes from './routes/cargo.routes';
+import treinamentoRoutes from './routes/treinamento.routes';
 
 // ================== VERIFICAÇÃO DE SEGURANÇA ==================
 if (!process.env.TOKEN_SECRET) {
@@ -76,6 +77,9 @@ app.use('/api/produtos', produtoRoutes);
 
 // Gestão de Cargos e RH
 app.use('/api/cargos', cargoRoutes);
+
+// Gestão de Treinamentos (RH - Fase 4)
+app.use('/api/treinamentos', treinamentoRoutes); // [NOVO]
 
 // Fornecedores
 app.use('/api/fornecedor', fornecedorRoutes);
