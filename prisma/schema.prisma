@@ -22,7 +22,7 @@ model ConfiguracaoSistema {
   updatedAt              DateTime @updatedAt
 }
 
-// Treinamentos e Cursos (Módulo RH)
+// Treinamentos e Cursos (Módulo RH - Histórico do Colaborador)
 model Treinamento {
   id             String    @id @default(cuid())
   nome           String    // Ex: "MOPP", "Direção Defensiva"
@@ -36,6 +36,30 @@ model Treinamento {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+// Cargos e Funções (Ex: Motorista Truck, Operador de Munck)
+model Cargo {
+  id        String   @id @default(cuid())
+  nome      String   @unique 
+  descricao String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relacionamentos
+  colaboradores User[]
+  requisitos    TreinamentoObrigatorio[]
+}
+
+// Regras de Treinamento por Cargo (O que a vaga exige)
+model TreinamentoObrigatorio {
+  id                     String @id @default(cuid())
+  nome                   String // Ex: "Curso MOPP"
+  validadeMeses          Int    // Ex: 24 (2 anos). Se 0, não vence.
+  diasAntecedenciaAlerta Int    @default(30) // Alerta personalizado pelo RH para este curso
+
+  cargo   Cargo  @relation(fields: [cargoId], references: [id], onDelete: Cascade)
+  cargoId String
 }
 
 // ==========================================================
@@ -55,8 +79,12 @@ model User {
   nome      String
   email     String   @unique
   password  String
-  matricula String?  @unique // Opcional no cadastro, mas único se existir
+  matricula String?  @unique
   role      UserRole @default(OPERADOR)
+  
+  // --- Vínculo de RH ---
+  cargo   Cargo? @relation(fields: [cargoId], references: [id])
+  cargoId String?
   
   // --- DADOS DO RH (CNH & Docs) ---
   cnhNumero    String?
@@ -72,7 +100,7 @@ model User {
   updatedAt DateTime @updatedAt
 
   // Relacionamentos
-  treinamentos             Treinamento[]   // Histórico de cursos
+  treinamentos             Treinamento[]   // Histórico de cursos realizados
   jornadasComoOperador     Jornada[]       @relation("OperadorJornada")
   jornadasComoEncarregado  Jornada[]       @relation("EncarregadoJornada")
   abastecimentos           Abastecimento[]
@@ -160,7 +188,7 @@ model Abastecimento {
   dataHora          DateTime
   kmOdometro        Float
   
-  // 💰 ALTERADO: Float -> Decimal para precisão monetária
+  // 💰 Decimal para precisão monetária
   custoTotal        Decimal  @db.Decimal(10, 2)
   
   placaCartaoUsado  String?
@@ -185,7 +213,7 @@ model ItemAbastecimento {
   id              String   @id @default(cuid())
   quantidade      Float
   
-  // 💰 ALTERADO: Float -> Decimal para precisão monetária
+  // 💰 Decimal para precisão monetária
   valorPorUnidade Decimal  @db.Decimal(10, 2)
   valorTotal      Decimal  @db.Decimal(10, 2)
   
@@ -207,7 +235,7 @@ model OrdemServico {
   data               DateTime
   kmAtual            Float
   
-  // 💰 ALTERADO: Float -> Decimal para precisão monetária
+  // 💰 Decimal para precisão monetária
   custoTotal         Decimal        @db.Decimal(10, 2)
   
   tipo               TipoManutencao
@@ -231,7 +259,7 @@ model ItemOrdemServico {
   id              String  @id @default(cuid())
   quantidade      Float
   
-  // 💰 ALTERADO: Float -> Decimal para precisão monetária
+  // 💰 Decimal para precisão monetária
   valorPorUnidade Decimal @db.Decimal(10, 2)
   valorTotal      Decimal @db.Decimal(10, 2)
   
