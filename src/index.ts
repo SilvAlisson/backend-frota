@@ -4,6 +4,7 @@ import 'dotenv/config';
 import cron from 'node-cron';
 import { JornadaService } from './services/JornadaService';
 import { env } from './config/env';
+import cargoRoutes from './routes/cargo.routes';
 
 // ================== IMPORTS DE ROTAS ==================
 import authRoutes from './routes/auth.routes';
@@ -72,6 +73,9 @@ app.use('/api/ordens-servico', manutencaoRoutes);
 // Produtos
 app.use('/api/produto', produtoRoutes);
 app.use('/api/produtos', produtoRoutes);
+
+// Gestão de Cargos e RH
+app.use('/api/cargos', cargoRoutes);
 
 // Fornecedores
 app.use('/api/fornecedor', fornecedorRoutes);
