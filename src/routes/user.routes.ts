@@ -11,7 +11,7 @@ router.use(authenticateToken);
 
 // Apenas ADMIN pode criar usuários + Validação Zod
 router.post('/register',
-    authorize(['ADMIN']),
+    authorize(['ADMIN', 'RH']),
     validate(registerUserSchema),
     UserController.create
 );
@@ -20,12 +20,12 @@ router.post('/register',
 router.get('/', UserController.list);
 
 // Apenas ADMIN vê detalhes
-router.get('/:id', authorize(['ADMIN']), UserController.getById);
+router.get('/:id', authorize(['ADMIN', 'RH']), UserController.getById);
 
 // Apenas ADMIN edita
-router.put('/:id', authorize(['ADMIN']), UserController.update);
+router.put('/:id', authorize(['ADMIN', 'RH']), UserController.update);
 
 // Apenas ADMIN deleta
-router.delete('/:id', authorize(['ADMIN']), UserController.delete);
+router.delete('/:id', authorize(['ADMIN', 'RH']), UserController.delete);
 
 export default router;

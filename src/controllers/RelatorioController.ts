@@ -3,7 +3,7 @@ import { prisma } from '../lib/prisma';
 import { KmService } from '../services/KmService';
 import { AuthenticatedRequest } from '../middleware/auth';
 import { addDays } from '../utils/dateUtils';
-import { Prisma } from '@prisma/client'; // Importar Prisma para tipos se necessário
+import { Prisma } from '@prisma/client';
 
 export class RelatorioController {
 
@@ -110,7 +110,7 @@ export class RelatorioController {
     }
 
     static async alertas(req: AuthenticatedRequest, res: Response) {
-        if (req.user?.role !== 'ADMIN' && req.user?.role !== 'ENCARREGADO') return res.status(403).json({ error: 'Acesso negado' });
+        if (req.user?.role !== 'ADMIN' && req.user?.role !== 'ENCARREGADO' && req.user?.role !== 'RH') return res.status(403).json({ error: 'Acesso negado' });
         try {
             const alertas = [];
             const hoje = new Date();
