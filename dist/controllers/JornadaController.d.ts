@@ -5,6 +5,7 @@ export declare class JornadaController {
     static finalizar(req: AuthenticatedRequest, res: Response): Promise<Response<any, Record<string, any>> | undefined>;
     static listarAbertas(req: AuthenticatedRequest, res: Response): Promise<Response<any, Record<string, any>> | undefined>;
     static listarMinhasAbertas(req: AuthenticatedRequest, res: Response): Promise<Response<any, Record<string, any>> | undefined>;
+    static listarHistorico(req: AuthenticatedRequest, res: Response): Promise<Response<any, Record<string, any>> | undefined>;
     static verificarTimeouts(req: AuthenticatedRequest, res: Response): Promise<void>;
 }
 //# sourceMappingURL=JornadaController.d.ts.map

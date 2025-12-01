@@ -13,7 +13,9 @@ class UserController {
             return res.status(403).json({ error: 'Acesso não autorizado. Apenas Admins podem criar usuários.' });
         }
         try {
-            const { nome, email, password, matricula, role } = req.body;
+            const { nome, email, password, matricula, role, 
+            // Novos campos do RH
+            cargoId, cnhNumero, cnhCategoria, cnhValidade, dataAdmissao } = req.body;
             if (role === 'ADMIN') {
                 return res.status(403).json({ error: 'Não é permitido criar outro ADMIN por esta rota.' });
             }
@@ -23,7 +25,19 @@ class UserController {
             const salt = await bcrypt_1.default.genSalt(10);
             const hashedPassword = await bcrypt_1.default.hash(password, salt);
             const novoUser = await prisma_1.prisma.user.create({
-                data: { nome, email, password: hashedPassword, matricula, role },
+                data: {
+                    nome,
+                    email,
+                    password: hashedPassword,
+                    matricula: matricula || null,
+                    role,
+                    // Campos opcionais de RH
+                    cargoId: cargoId || null,
+                    cnhNumero: cnhNumero || null,
+                    cnhCategoria: cnhCategoria || null,
+                    cnhValidade: cnhValidade ? new Date(cnhValidade) : null,
+                    dataAdmissao: dataAdmissao ? new Date(dataAdmissao) : null
+                },
             });
             // Remove a senha do retorno (segurança)
             const { password: _, ...userSemSenha } = novoUser;
@@ -31,15 +45,23 @@ class UserController {
         }
         catch (error) {
             if (error.code === 'P2002') {
-                return res.status(409).json({ error: `Já existe um usuário com este email ou matrícula.` });
+                return res.status(409).json({ error: `Já existe um usuário com este email, matrícula ou token.` });
             }
+            console.error("Erro ao criar usuário:", error);
             res.status(500).json({ error: 'Erro ao registrar usuário' });
         }
     }
     static async list(req, res) {
         try {
             const users = await prisma_1.prisma.user.findMany({
-                select: { id: true, nome: true, email: true, role: true, matricula: true },
+                select: {
+                    id: true,
+                    nome: true,
+                    email: true,
+                    role: true,
+                    matricula: true,
+                    cargo: { select: { nome: true } } // Inclui o nome do cargo na listagem
+                },
                 orderBy: { nome: 'asc' }
             });
             res.json(users);
@@ -51,17 +73,19 @@ class UserController {
     static async getById(req, res) {
         if (req.user?.role !== 'ADMIN')
             return res.status(403).json({ error: 'Acesso negado.' });
-        const id = req.params.id; // Pega diretamente
+        const id = req.params.id;
         if (!id)
             return res.status(400).json({ error: 'ID não fornecido.' });
         try {
             const user = await prisma_1.prisma.user.findUnique({
-                where: { id }, // O TypeScript agora entende que id é string devido à verificação acima
-                select: { id: true, nome: true, email: true, role: true, matricula: true }
+                where: { id },
+                include: { cargo: true } // Traz os dados do cargo também
             });
             if (!user)
                 return res.status(404).json({ error: 'Usuário não encontrado' });
-            res.json(user);
+            // Remove a senha antes de enviar
+            const { password, ...userSafe } = user;
+            res.json(userSafe);
         }
         catch (error) {
             res.status(500).json({ error: 'Erro ao buscar usuário' });
@@ -74,8 +98,16 @@ class UserController {
         if (!id)
             return res.status(400).json({ error: 'ID não fornecido.' });
         try {
-            const { nome, email, matricula, role, password } = req.body;
-            const data = { nome, email, matricula: matricula || null, role };
+            const { nome, email, matricula, role, password, cargoId, cnhNumero, cnhCategoria, cnhValidade, dataAdmissao } = req.body;
+            const data = {
+                nome, email, role,
+                matricula: matricula || null,
+                cargoId: cargoId || null,
+                cnhNumero: cnhNumero || null,
+                cnhCategoria: cnhCategoria || null,
+                cnhValidade: cnhValidade ? new Date(cnhValidade) : null,
+                dataAdmissao: dataAdmissao ? new Date(dataAdmissao) : null
+            };
             if (password && password.trim() !== '') {
                 const salt = await bcrypt_1.default.genSalt(10);
                 data.password = await bcrypt_1.default.hash(password, 10);

@@ -24,14 +24,18 @@ class RelatorioController {
                 prisma_1.prisma.jornada.findMany({ where: { dataInicio: filtroData, kmFim: { not: null }, ...filtroVeiculo }, select: { kmInicio: true, kmFim: true } })
             ]);
             const kmTotal = jornadas.reduce((acc, j) => acc + ((j.kmFim ?? 0) - j.kmInicio), 0);
-            const totalGeral = (combustivel._sum.valorTotal || 0) + (aditivo._sum.valorTotal || 0) + (manutencao._sum.custoTotal || 0);
+            // Conversão explícita de Decimal para Number para permitir a soma
+            const totalCombustivel = Number(combustivel._sum.valorTotal || 0);
+            const totalAditivo = Number(aditivo._sum.valorTotal || 0);
+            const totalManutencao = Number(manutencao._sum.custoTotal || 0);
+            const totalGeral = totalCombustivel + totalAditivo + totalManutencao;
             const litrosTotal = litros._sum.quantidade || 0;
             res.json({
                 kpis: {
                     custoTotalGeral: totalGeral,
-                    custoTotalCombustivel: combustivel._sum.valorTotal || 0,
-                    custoTotalAditivo: aditivo._sum.valorTotal || 0,
-                    custoTotalManutencao: manutencao._sum.custoTotal || 0,
+                    custoTotalCombustivel: totalCombustivel,
+                    custoTotalAditivo: totalAditivo,
+                    custoTotalManutencao: totalManutencao,
                     kmTotalRodado: kmTotal,
                     litrosTotaisConsumidos: litrosTotal,
                     consumoMedioKML: litrosTotal > 0 ? kmTotal / litrosTotal : 0,
@@ -40,6 +44,7 @@ class RelatorioController {
             });
         }
         catch (e) {
+            console.error(e); // Log do erro para debug
             res.status(500).json({ error: 'Erro ao gerar sumário.' });
         }
     }

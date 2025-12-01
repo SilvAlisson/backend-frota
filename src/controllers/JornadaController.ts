@@ -92,7 +92,7 @@ export class JornadaController {
             }
 
             // =================================================================================
-            // PASSO 3: CRIAR NOVA JORNADA (Carlos inicia)
+            // PASSO 3: CRIAR NOVA JORNADA
             // =================================================================================
             transacoes.push(prisma.jornada.create({
                 data: {
@@ -120,7 +120,7 @@ export class JornadaController {
         }
     }
 
-    // --- Finalizar Manualmente (Cenário A - O Próprio Motorista fecha) ---
+    // --- Finalizar Manualmente ---
     static async finalizar(req: AuthenticatedRequest, res: Response) {
         try {
             const { kmFim, observacoes, fotoFimUrl } = req.body;
@@ -245,5 +245,24 @@ export class JornadaController {
             await JornadaService.fecharJornadasVencidas();
             res.json({ message: 'Verificação executada.', timestamp: new Date() });
         } catch (e) { res.status(500).json({ error: 'Erro no cron.' }); }
+    }
+
+    // --- Deletar Jornada (Apenas Admin/Encarregado) ---
+    static async delete(req: AuthenticatedRequest, res: Response) {
+        // Apenas Gestores podem deletar
+        if (!['ADMIN', 'ENCARREGADO'].includes(req.user?.role || '')) {
+            return res.status(403).json({ error: 'Acesso negado.' });
+        }
+
+        const { id } = req.params;
+        if (!id) return res.status(400).json({ error: 'ID inválido.' });
+
+        try {
+            await prisma.jornada.delete({ where: { id } });
+            res.json({ message: 'Jornada removida com sucesso.' });
+        } catch (error) {
+            console.error("Erro ao deletar jornada:", error);
+            res.status(500).json({ error: 'Erro ao deletar jornada.' });
+        }
     }
 }

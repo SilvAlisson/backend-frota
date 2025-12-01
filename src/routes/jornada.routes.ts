@@ -11,5 +11,6 @@ router.get('/abertas', JornadaController.listarAbertas);
 router.get('/minhas-abertas-operador', JornadaController.listarMinhasAbertas);
 router.post('/verificar-timeouts', JornadaController.verificarTimeouts);
 router.get('/historico', JornadaController.listarHistorico);
+router.delete('/:id', JornadaController.delete);
 
 export default router;

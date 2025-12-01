@@ -11,7 +11,13 @@ export declare const registerUserSchema: z.ZodObject<{
         OPERADOR: "OPERADOR";
         ENCARREGADO: "ENCARREGADO";
         ADMIN: "ADMIN";
+        RH: "RH";
+        COORDENADOR: "COORDENADOR";
     }>;
     matricula: z.ZodNullable<z.ZodOptional<z.ZodString>>;
+    cnhNumero: z.ZodNullable<z.ZodOptional<z.ZodString>>;
+    cnhCategoria: z.ZodNullable<z.ZodOptional<z.ZodString>>;
+    cnhValidade: z.ZodNullable<z.ZodOptional<z.ZodString>>;
+    dataAdmissao: z.ZodNullable<z.ZodOptional<z.ZodString>>;
 }, z.core.$strip>;
 //# sourceMappingURL=auth.schemas.d.ts.map

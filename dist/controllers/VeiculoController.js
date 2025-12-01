@@ -13,7 +13,12 @@ const formatDateToInput = (date) => {
     return dataCorrigida.toISOString().split('T')[0];
 };
 class VeiculoController {
+    // Usar AuthenticatedRequest aqui
     static async create(req, res) {
+        // 🔒 BLOQUEIO: Só Admin (RH/Contratos futuramente)
+        if (req.user?.role !== 'ADMIN') {
+            return res.status(403).json({ error: 'Acesso negado. Apenas administradores podem gerir a frota.' });
+        }
         try {
             const { placa, modelo, ano, tipoCombustivel, capacidadeTanque, tipoVeiculo, vencimentoCiv, vencimentoCipp } = req.body;
             if (!placa || !modelo || !ano) {
@@ -41,6 +46,7 @@ class VeiculoController {
             res.status(500).json({ error: 'Erro ao cadastrar veículo' });
         }
     }
+    // Listagem pública para usuários logados
     static async list(req, res) {
         try {
             const veiculos = await prisma_1.prisma.veiculo.findMany({
@@ -61,7 +67,6 @@ class VeiculoController {
             const veiculo = await prisma_1.prisma.veiculo.findUnique({ where: { id } });
             if (!veiculo)
                 return res.status(404).json({ error: 'Veículo não encontrado.' });
-            // Now 'id' is guaranteed to be a string
             const ultimoKm = await KmService_1.KmService.getUltimoKMRegistrado(id);
             const veiculoFormatado = {
                 ...veiculo,
@@ -76,7 +81,12 @@ class VeiculoController {
             res.status(500).json({ error: 'Erro ao buscar dados do veículo.' });
         }
     }
+    // Usar AuthenticatedRequest aqui
     static async update(req, res) {
+        // 🔒 BLOQUEIO
+        if (req.user?.role !== 'ADMIN') {
+            return res.status(403).json({ error: 'Acesso negado. Apenas administradores podem gerir a frota.' });
+        }
         const { id } = req.params;
         if (!id)
             return res.status(400).json({ error: 'ID inválido' });
@@ -105,7 +115,12 @@ class VeiculoController {
             res.status(500).json({ error: 'Erro ao atualizar veículo.' });
         }
     }
+    // Usar AuthenticatedRequest aqui
     static async delete(req, res) {
+        // 🔒 BLOQUEIO
+        if (req.user?.role !== 'ADMIN') {
+            return res.status(403).json({ error: 'Acesso negado. Apenas administradores podem gerir a frota.' });
+        }
         const { id } = req.params;
         if (!id)
             return res.status(400).json({ error: 'ID inválido' });
