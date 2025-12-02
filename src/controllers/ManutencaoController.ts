@@ -20,18 +20,29 @@ export class ManutencaoController {
         try {
             const { veiculoId, fornecedorId, kmAtual, data, tipo, itens, observacoes, fotoComprovanteUrl } = req.body;
 
-            if (!veiculoId || !fornecedorId || !kmAtual || !data || !tipo || !itens) {
-                return res.status(400).json({ error: 'Dados incompletos.' });
+            // Validação de campos obrigatórios (veiculoId e kmAtual saíram da obrigatoriedade global)
+            if (!fornecedorId || !data || !tipo || !itens || itens.length === 0) {
+                return res.status(400).json({ error: 'Dados incompletos. Fornecedor, data, tipo e itens são obrigatórios.' });
             }
 
-            const kmAtualFloat = parseFloat(kmAtual);
+            let kmAtualFloat: number | null = null;
 
-            // Validação KM
-            const ultimoKM = await KmService.getUltimoKMRegistrado(veiculoId);
-            if (kmAtualFloat < ultimoKM) {
-                return res.status(400).json({ error: `KM (${kmAtualFloat}) menor que o histórico (${ultimoKM}).` });
+            // Se houver veículo vinculado, a validação de KM é obrigatória
+            if (veiculoId) {
+                if (!kmAtual) {
+                    return res.status(400).json({ error: 'KM é obrigatório para manutenções vinculadas a um veículo.' });
+                }
+
+                kmAtualFloat = parseFloat(kmAtual);
+
+                // Validação KM (Não pode ser menor que o anterior)
+                const ultimoKM = await KmService.getUltimoKMRegistrado(veiculoId);
+                if (kmAtualFloat < ultimoKM) {
+                    return res.status(400).json({ error: `KM informado (${kmAtualFloat}) é menor que o histórico (${ultimoKM}).` });
+                }
             }
 
+            // Cálculo do Custo Total
             let custoTotalGeral = 0;
             const itensParaCriar = itens.map((item: any) => {
                 const total = parseFloat(item.quantidade) * parseFloat(item.valorPorUnidade);
@@ -44,17 +55,22 @@ export class ManutencaoController {
                 };
             });
 
+            // Criação da OS
             const novaOS = await prisma.ordemServico.create({
                 data: {
-                    veiculo: { connect: { id: veiculoId } },
+                    // Conecta ao veículo APENAS se veiculoId foi fornecido
+                    ...(veiculoId ? { veiculo: { connect: { id: veiculoId } } } : {}),
+
                     fornecedor: { connect: { id: fornecedorId } },
-                    encarregado: { connect: { id: encarregadoId } }, // Agora é seguro (string)
-                    kmAtual: kmAtualFloat,
+                    encarregado: { connect: { id: encarregadoId } },
+
+                    kmAtual: kmAtualFloat, // Pode ser null
                     data: new Date(data),
                     tipo,
                     custoTotal: custoTotalGeral,
-                    observacoes,
-                    fotoComprovanteUrl,
+                    observacoes: observacoes || null,
+                    fotoComprovanteUrl: fotoComprovanteUrl || null,
+
                     itens: { create: itensParaCriar },
                 },
                 include: { itens: { include: { produto: true } } },
