@@ -2,20 +2,13 @@ import { Response } from 'express';
 import { prisma } from '../lib/prisma';
 import { AuthenticatedRequest } from '../middleware/auth';
 import { z } from 'zod';
+import { createTreinamentoSchema, importTreinamentosSchema } from '../schemas/treinamentos.schemas';
 
-// --- Schemas ---
-
-const createTreinamentoSchema = z.object({
-    userId: z.string().uuid(),
-    nome: z.string().min(2, "Nome do treinamento obrigatório"),
-    descricao: z.string().optional().nullable(),
-    dataRealizacao: z.coerce.date(),
-    dataVencimento: z.coerce.date().optional().nullable(),
-    comprovanteUrl: z.string().url().optional().nullable(),
-});
+// --- Schemas Locais para Parâmetros de Rota ---
 
 const userIdParamSchema = z.object({
-    userId: z.string().uuid("ID de usuário inválido")
+    // Aceita CUID do Prisma (sem .uuid())
+    userId: z.string().min(1, "ID de usuário inválido")
 });
 
 const idParamSchema = z.object({
@@ -26,7 +19,7 @@ const idParamSchema = z.object({
 
 export class TreinamentoController {
 
-    // Cadastrar um treinamento para um usuário
+    // Cadastrar um treinamento para um usuário (Manual)
     static async create(req: AuthenticatedRequest, res: Response) {
         // Apenas RH ou Admin pode lançar
         if (!['ADMIN', 'RH', 'ENCARREGADO'].includes(req.user?.role || '')) {
@@ -57,6 +50,45 @@ export class TreinamentoController {
         } catch (e: any) {
             console.error(e);
             res.status(500).json({ error: 'Erro ao registrar treinamento.' });
+        }
+    }
+
+    // NOVO: Importação em massa via Excel (JSON processado no front)
+    static async importar(req: AuthenticatedRequest, res: Response) {
+        if (!['ADMIN', 'RH', 'ENCARREGADO'].includes(req.user?.role || '')) {
+            return res.status(403).json({ error: 'Acesso negado.' });
+        }
+
+        const validation = importTreinamentosSchema.safeParse(req.body);
+        if (!validation.success) {
+            return res.status(400).json({
+                error: 'Dados de importação inválidos',
+                details: validation.error.format()
+            });
+        }
+
+        const { userId, treinamentos } = validation.data;
+
+        try {
+            // createMany é mais performático para inserções em lote
+            const resultado = await prisma.treinamento.createMany({
+                data: treinamentos.map(t => ({
+                    userId,
+                    nome: t.nome,
+                    descricao: t.descricao || null,
+                    dataRealizacao: t.dataRealizacao,
+                    dataVencimento: t.dataVencimento || null,
+                    comprovanteUrl: null // Importação via excel geralmente não tem link de foto direto
+                }))
+            });
+
+            res.status(201).json({
+                message: 'Importação concluída com sucesso',
+                count: resultado.count
+            });
+        } catch (e: any) {
+            console.error("Erro na importação:", e);
+            res.status(500).json({ error: 'Erro ao importar treinamentos.' });
         }
     }
 

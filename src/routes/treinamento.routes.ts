@@ -9,6 +9,7 @@ router.use(authenticateToken);
 
 // Rotas
 router.post('/', TreinamentoController.create);
+router.post('/importar', TreinamentoController.importar);
 router.get('/user/:userId', TreinamentoController.listByUser);
 router.delete('/:id', TreinamentoController.delete);
 
