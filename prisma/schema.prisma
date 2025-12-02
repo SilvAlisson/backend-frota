@@ -233,7 +233,10 @@ model ItemAbastecimento {
 model OrdemServico {
   id                 String         @id @default(cuid())
   data               DateTime
-  kmAtual            Float
+  
+  // Agora opcionais para permitir manutenção sem veículo (ex: Caçamba)
+  kmAtual            Float?
+  veiculoId          String?
   
   // 💰 Decimal para precisão monetária
   custoTotal         Decimal        @db.Decimal(10, 2)
@@ -243,8 +246,8 @@ model OrdemServico {
   fotoComprovanteUrl String?
   createdAt          DateTime       @default(now())
 
-  veiculo       Veiculo            @relation(fields: [veiculoId], references: [id])
-  veiculoId     String
+  // Relação opcional
+  veiculo       Veiculo?           @relation(fields: [veiculoId], references: [id])
   
   fornecedor    Fornecedor         @relation(fields: [fornecedorId], references: [id])
   fornecedorId  String
