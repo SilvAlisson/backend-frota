@@ -4,31 +4,29 @@ import { AuthenticatedRequest } from '../middleware/auth';
 import { z } from 'zod';
 import { createTreinamentoSchema, importTreinamentosSchema } from '../schemas/treinamentos.schemas';
 
-// --- Schemas Locais para Parâmetros de Rota ---
-
+// Schemas Locais para IDs
 const userIdParamSchema = z.object({
-    // Aceita CUID do Prisma (sem .uuid())
-    userId: z.string().min(1, "ID de usuário inválido")
+    userId: z.string().min(1, { error: "ID de usuário inválido" })
 });
 
 const idParamSchema = z.object({
-    id: z.string().min(1, "ID obrigatório")
+    id: z.string().min(1, { error: "ID obrigatório" })
 });
-
-// ----------------
 
 export class TreinamentoController {
 
-    // Cadastrar um treinamento para um usuário (Manual)
+    // Cadastrar um treinamento (Manual)
     static async create(req: AuthenticatedRequest, res: Response) {
-        // Apenas RH ou Admin pode lançar
         if (!['ADMIN', 'RH', 'ENCARREGADO'].includes(req.user?.role || '')) {
             return res.status(403).json({ error: 'Acesso negado.' });
         }
 
         const validation = createTreinamentoSchema.safeParse(req.body);
         if (!validation.success) {
-            return res.status(400).json({ error: 'Dados inválidos', details: validation.error.format() });
+            return res.status(400).json({
+                error: 'Dados inválidos',
+                details: validation.error.format()
+            });
         }
 
         const { userId, nome, dataRealizacao, descricao, dataVencimento, comprovanteUrl } = validation.data;
@@ -36,11 +34,9 @@ export class TreinamentoController {
         try {
             const treinamento = await prisma.treinamento.create({
                 data: {
-                    // Conecta ao usuário existente
                     user: { connect: { id: userId } },
                     nome,
                     dataRealizacao,
-                    // Garante que undefined vire null para satisfazer o Prisma
                     descricao: descricao ?? null,
                     dataVencimento: dataVencimento ?? null,
                     comprovanteUrl: comprovanteUrl ?? null
@@ -53,7 +49,7 @@ export class TreinamentoController {
         }
     }
 
-    // NOVO: Importação em massa via Excel (JSON processado no front)
+    // Importação em massa via Excel
     static async importar(req: AuthenticatedRequest, res: Response) {
         if (!['ADMIN', 'RH', 'ENCARREGADO'].includes(req.user?.role || '')) {
             return res.status(403).json({ error: 'Acesso negado.' });
@@ -70,7 +66,7 @@ export class TreinamentoController {
         const { userId, treinamentos } = validation.data;
 
         try {
-            // createMany é mais performático para inserções em lote
+            // createMany é otimizado para inserções em lote
             const resultado = await prisma.treinamento.createMany({
                 data: treinamentos.map(t => ({
                     userId,
@@ -78,7 +74,7 @@ export class TreinamentoController {
                     descricao: t.descricao || null,
                     dataRealizacao: t.dataRealizacao,
                     dataVencimento: t.dataVencimento || null,
-                    comprovanteUrl: null // Importação via excel geralmente não tem link de foto direto
+                    comprovanteUrl: null
                 }))
             });
 
@@ -92,9 +88,8 @@ export class TreinamentoController {
         }
     }
 
-    // Listar treinamentos de um usuário específico
+    // Listar treinamentos
     static async listByUser(req: AuthenticatedRequest, res: Response) {
-        // Valida req.params para garantir que userId existe e é string
         const paramsCheck = userIdParamSchema.safeParse(req.params);
         if (!paramsCheck.success) {
             return res.status(400).json({ error: "ID de usuário inválido" });
@@ -116,7 +111,6 @@ export class TreinamentoController {
     static async delete(req: AuthenticatedRequest, res: Response) {
         if (!['ADMIN', 'RH'].includes(req.user?.role || '')) return res.sendStatus(403);
 
-        // Valida req.params para garantir que id existe
         const paramsCheck = idParamSchema.safeParse(req.params);
         if (!paramsCheck.success) {
             return res.status(400).json({ error: "ID inválido" });

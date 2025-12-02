@@ -7,7 +7,7 @@ export const veiculoSchema = z.object({
 
     modelo: z.string().min(2, { error: "Modelo deve ter pelo menos 2 caracteres." }),
 
-    ano: z.number({ error: "Ano é obrigatório e deve ser numérico." })
+    ano: z.coerce.number({ error: "Ano é obrigatório e deve ser numérico." })
         .int()
         .min(1900, { error: "Ano inválido." })
         .max(new Date().getFullYear() + 1, { error: "Ano não pode ser futuro." }),
@@ -18,7 +18,7 @@ export const veiculoSchema = z.object({
         error: "Tipo de combustível inválido"
     }).default('DIESEL_S10'),
 
-    capacidadeTanque: z.number().positive().optional().nullable(),
+    capacidadeTanque: z.coerce.number().positive().optional().nullable(),
 
     vencimentoCiv: z.coerce.date().optional().nullable(),
     vencimentoCipp: z.coerce.date().optional().nullable(),
