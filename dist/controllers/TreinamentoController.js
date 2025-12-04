@@ -3,42 +3,34 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.TreinamentoController = void 0;
 const prisma_1 = require("../lib/prisma");
 const zod_1 = require("zod");
-// --- Schemas ---
-const createTreinamentoSchema = zod_1.z.object({
-    userId: zod_1.z.string().uuid(),
-    nome: zod_1.z.string().min(2, "Nome do treinamento obrigatório"),
-    descricao: zod_1.z.string().optional().nullable(),
-    dataRealizacao: zod_1.z.coerce.date(),
-    dataVencimento: zod_1.z.coerce.date().optional().nullable(),
-    comprovanteUrl: zod_1.z.string().url().optional().nullable(),
-});
+const treinamentos_schemas_1 = require("../schemas/treinamentos.schemas");
+// Schemas Locais para IDs
 const userIdParamSchema = zod_1.z.object({
-    userId: zod_1.z.string().uuid("ID de usuário inválido")
+    userId: zod_1.z.string().min(1, { error: "ID de usuário inválido" })
 });
 const idParamSchema = zod_1.z.object({
-    id: zod_1.z.string().min(1, "ID obrigatório")
+    id: zod_1.z.string().min(1, { error: "ID obrigatório" })
 });
-// ----------------
 class TreinamentoController {
-    // Cadastrar um treinamento para um usuário
+    // Cadastrar um treinamento (Manual)
     static async create(req, res) {
-        // Apenas RH ou Admin pode lançar
         if (!['ADMIN', 'RH', 'ENCARREGADO'].includes(req.user?.role || '')) {
             return res.status(403).json({ error: 'Acesso negado.' });
         }
-        const validation = createTreinamentoSchema.safeParse(req.body);
+        const validation = treinamentos_schemas_1.createTreinamentoSchema.safeParse(req.body);
         if (!validation.success) {
-            return res.status(400).json({ error: 'Dados inválidos', details: validation.error.format() });
+            return res.status(400).json({
+                error: 'Dados inválidos',
+                details: validation.error.format()
+            });
         }
         const { userId, nome, dataRealizacao, descricao, dataVencimento, comprovanteUrl } = validation.data;
         try {
             const treinamento = await prisma_1.prisma.treinamento.create({
                 data: {
-                    // Conecta ao usuário existente
                     user: { connect: { id: userId } },
                     nome,
                     dataRealizacao,
-                    // Garante que undefined vire null para satisfazer o Prisma
                     descricao: descricao ?? null,
                     dataVencimento: dataVencimento ?? null,
                     comprovanteUrl: comprovanteUrl ?? null
@@ -51,9 +43,43 @@ class TreinamentoController {
             res.status(500).json({ error: 'Erro ao registrar treinamento.' });
         }
     }
-    // Listar treinamentos de um usuário específico
+    // Importação em massa via Excel
+    static async importar(req, res) {
+        if (!['ADMIN', 'RH', 'ENCARREGADO'].includes(req.user?.role || '')) {
+            return res.status(403).json({ error: 'Acesso negado.' });
+        }
+        const validation = treinamentos_schemas_1.importTreinamentosSchema.safeParse(req.body);
+        if (!validation.success) {
+            return res.status(400).json({
+                error: 'Dados de importação inválidos',
+                details: validation.error.format()
+            });
+        }
+        const { userId, treinamentos } = validation.data;
+        try {
+            // createMany é otimizado para inserções em lote
+            const resultado = await prisma_1.prisma.treinamento.createMany({
+                data: treinamentos.map(t => ({
+                    userId,
+                    nome: t.nome,
+                    descricao: t.descricao || null,
+                    dataRealizacao: t.dataRealizacao,
+                    dataVencimento: t.dataVencimento || null,
+                    comprovanteUrl: null
+                }))
+            });
+            res.status(201).json({
+                message: 'Importação concluída com sucesso',
+                count: resultado.count
+            });
+        }
+        catch (e) {
+            console.error("Erro na importação:", e);
+            res.status(500).json({ error: 'Erro ao importar treinamentos.' });
+        }
+    }
+    // Listar treinamentos
     static async listByUser(req, res) {
-        // Valida req.params para garantir que userId existe e é string
         const paramsCheck = userIdParamSchema.safeParse(req.params);
         if (!paramsCheck.success) {
             return res.status(400).json({ error: "ID de usuário inválido" });
@@ -73,7 +99,6 @@ class TreinamentoController {
     static async delete(req, res) {
         if (!['ADMIN', 'RH'].includes(req.user?.role || ''))
             return res.sendStatus(403);
-        // Valida req.params para garantir que id existe
         const paramsCheck = idParamSchema.safeParse(req.params);
         if (!paramsCheck.success) {
             return res.status(400).json({ error: "ID inválido" });

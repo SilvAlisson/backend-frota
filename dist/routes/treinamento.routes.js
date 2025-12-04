@@ -8,6 +8,7 @@ const router = (0, express_1.Router)();
 router.use(auth_1.authenticateToken);
 // Rotas
 router.post('/', TreinamentoController_1.TreinamentoController.create);
+router.post('/importar', TreinamentoController_1.TreinamentoController.importar);
 router.get('/user/:userId', TreinamentoController_1.TreinamentoController.listByUser);
 router.delete('/:id', TreinamentoController_1.TreinamentoController.delete);
 exports.default = router;

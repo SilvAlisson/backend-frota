@@ -1,1 +1,1 @@
-{"version":3,"file":"treinamentos.schemas.d.ts","sourceRoot":"","sources":["../../src/schemas/treinamentos.schemas.ts"],"names":[],"mappings":"AAAA,OAAO,EAAE,CAAC,EAAE,MAAM,KAAK,CAAC;AAExB,eAAO,MAAM,uBAAuB;;;;;;;iBAgBlC,CAAC"}
+{"version":3,"file":"treinamentos.schemas.d.ts","sourceRoot":"","sources":["../../src/schemas/treinamentos.schemas.ts"],"names":[],"mappings":"AAAA,OAAO,EAAE,CAAC,EAAE,MAAM,KAAK,CAAC;AAExB,eAAO,MAAM,uBAAuB;;;;;;;iBAWlC,CAAC;AAEH,eAAO,MAAM,wBAAwB;;;;;;;;iBASnC,CAAC"}

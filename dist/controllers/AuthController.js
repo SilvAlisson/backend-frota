@@ -8,7 +8,7 @@ const prisma_1 = require("../lib/prisma");
 const bcrypt_1 = __importDefault(require("bcrypt"));
 const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
 const crypto_1 = __importDefault(require("crypto"));
-const env_1 = require("../config/env"); // Importação centralizada das configurações
+const env_1 = require("../config/env");
 class AuthController {
     static async login(req, res) {
         try {
@@ -19,8 +19,8 @@ class AuthController {
             if (!user || !await bcrypt_1.default.compare(password, user.password)) {
                 return res.status(401).json({ error: 'Credenciais inválidas' });
             }
-            // Uso seguro do env.TOKEN_SECRET (já validado ao iniciar o app)
-            const token = jsonwebtoken_1.default.sign({ userId: user.id, role: user.role }, env_1.env.TOKEN_SECRET, { expiresIn: '8h' });
+            // CORREÇÃO: Token sem prazo de expiração (sessão infinita)
+            const token = jsonwebtoken_1.default.sign({ userId: user.id, role: user.role }, env_1.env.TOKEN_SECRET);
             res.status(200).json({
                 message: 'Login bem-sucedido',
                 token,
@@ -40,8 +40,8 @@ class AuthController {
             const user = await prisma_1.prisma.user.findFirst({ where: { loginToken } });
             if (!user)
                 return res.status(401).json({ error: 'Token inválido.' });
-            // Uso seguro do env.TOKEN_SECRET
-            const token = jsonwebtoken_1.default.sign({ userId: user.id, role: user.role }, env_1.env.TOKEN_SECRET, { expiresIn: '8h' });
+            // CORREÇÃO: Token sem prazo de expiração (sessão infinita)
+            const token = jsonwebtoken_1.default.sign({ userId: user.id, role: user.role }, env_1.env.TOKEN_SECRET);
             res.status(200).json({
                 message: 'Login por token OK',
                 token,

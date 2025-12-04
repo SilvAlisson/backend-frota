@@ -229,6 +229,24 @@ class JornadaController {
             res.status(500).json({ error: 'Erro no cron.' });
         }
     }
+    // --- Deletar Jornada (Apenas Admin/Encarregado) ---
+    static async delete(req, res) {
+        // Apenas Gestores podem deletar
+        if (!['ADMIN', 'ENCARREGADO'].includes(req.user?.role || '')) {
+            return res.status(403).json({ error: 'Acesso negado.' });
+        }
+        const { id } = req.params;
+        if (!id)
+            return res.status(400).json({ error: 'ID inválido.' });
+        try {
+            await prisma_1.prisma.jornada.delete({ where: { id } });
+            res.json({ message: 'Jornada removida com sucesso.' });
+        }
+        catch (error) {
+            console.error("Erro ao deletar jornada:", error);
+            res.status(500).json({ error: 'Erro ao deletar jornada.' });
+        }
+    }
 }
 exports.JornadaController = JornadaController;
 //# sourceMappingURL=JornadaController.js.map

@@ -3,22 +3,22 @@ export declare const abastecimentoSchema: z.ZodObject<{
     veiculoId: z.ZodString;
     operadorId: z.ZodString;
     fornecedorId: z.ZodString;
-    kmOdometro: z.ZodNumber;
+    kmOdometro: z.ZodCoercedNumber<unknown>;
     dataHora: z.ZodCoercedDate<unknown>;
     placaCartaoUsado: z.ZodNullable<z.ZodOptional<z.ZodString>>;
     justificativa: z.ZodNullable<z.ZodOptional<z.ZodString>>;
     observacoes: z.ZodNullable<z.ZodOptional<z.ZodString>>;
-    fotoNotaFiscalUrl: z.ZodNullable<z.ZodOptional<z.ZodString>>;
+    fotoNotaFiscalUrl: z.ZodURL;
     itens: z.ZodArray<z.ZodObject<{
         produtoId: z.ZodString;
-        quantidade: z.ZodNumber;
-        valorPorUnidade: z.ZodNumber;
+        quantidade: z.ZodCoercedNumber<unknown>;
+        valorPorUnidade: z.ZodCoercedNumber<unknown>;
     }, z.core.$strip>>;
 }, z.core.$strip>;
 export declare const manutencaoSchema: z.ZodObject<{
-    veiculoId: z.ZodString;
+    veiculoId: z.ZodNullable<z.ZodOptional<z.ZodString>>;
+    kmAtual: z.ZodNullable<z.ZodOptional<z.ZodCoercedNumber<unknown>>>;
     fornecedorId: z.ZodString;
-    kmAtual: z.ZodNumber;
     data: z.ZodCoercedDate<unknown>;
     tipo: z.ZodEnum<{
         PREVENTIVA: "PREVENTIVA";
@@ -29,8 +29,8 @@ export declare const manutencaoSchema: z.ZodObject<{
     fotoComprovanteUrl: z.ZodNullable<z.ZodOptional<z.ZodString>>;
     itens: z.ZodArray<z.ZodObject<{
         produtoId: z.ZodString;
-        quantidade: z.ZodNumber;
-        valorPorUnidade: z.ZodNumber;
+        quantidade: z.ZodCoercedNumber<unknown>;
+        valorPorUnidade: z.ZodCoercedNumber<unknown>;
     }, z.core.$strip>>;
 }, z.core.$strip>;
 //# sourceMappingURL=operacao.schemas.d.ts.map

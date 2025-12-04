@@ -98,7 +98,7 @@ class RelatorioController {
         }
     }
     static async alertas(req, res) {
-        if (req.user?.role !== 'ADMIN' && req.user?.role !== 'ENCARREGADO')
+        if (req.user?.role !== 'ADMIN' && req.user?.role !== 'ENCARREGADO' && req.user?.role !== 'RH')
             return res.status(403).json({ error: 'Acesso negado' });
         try {
             const alertas = [];

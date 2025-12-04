@@ -9,15 +9,21 @@ const bcrypt_1 = __importDefault(require("bcrypt"));
 const client_1 = require("@prisma/client");
 class UserController {
     static async create(req, res) {
-        if (req.user?.role !== 'ADMIN') {
-            return res.status(403).json({ error: 'Acesso não autorizado. Apenas Admins podem criar usuários.' });
+        // Permitir ADMIN e RH
+        if (!['ADMIN', 'RH'].includes(req.user?.role || '')) {
+            return res.status(403).json({ error: 'Acesso não autorizado. Apenas Admins e RH podem criar usuários.' });
         }
         try {
             const { nome, email, password, matricula, role, 
             // Novos campos do RH
             cargoId, cnhNumero, cnhCategoria, cnhValidade, dataAdmissao } = req.body;
-            if (role === 'ADMIN') {
-                return res.status(403).json({ error: 'Não é permitido criar outro ADMIN por esta rota.' });
+            // Bloqueio de segurança: RH não pode criar um ADMIN, apenas outro RH ou níveis abaixo
+            if (req.user?.role === 'RH' && role === 'ADMIN') {
+                return res.status(403).json({ error: 'RH não pode criar usuários Administradores.' });
+            }
+            if (role === 'ADMIN' && req.user?.role !== 'ADMIN') {
+                // Redundância de segurança
+                return res.status(403).json({ error: 'Apenas ADMIN pode criar outro ADMIN.' });
             }
             if (!nome || !email || !password || !role) {
                 return res.status(400).json({ error: 'Nome, email, password e role são obrigatórios.' });
@@ -60,7 +66,7 @@ class UserController {
                     email: true,
                     role: true,
                     matricula: true,
-                    cargo: { select: { nome: true } } // Inclui o nome do cargo na listagem
+                    cargo: { select: { nome: true } }
                 },
                 orderBy: { nome: 'asc' }
             });
@@ -71,7 +77,8 @@ class UserController {
         }
     }
     static async getById(req, res) {
-        if (req.user?.role !== 'ADMIN')
+        // ATUALIZADO: Permitir ADMIN e RH
+        if (!['ADMIN', 'RH'].includes(req.user?.role || ''))
             return res.status(403).json({ error: 'Acesso negado.' });
         const id = req.params.id;
         if (!id)
@@ -79,7 +86,7 @@ class UserController {
         try {
             const user = await prisma_1.prisma.user.findUnique({
                 where: { id },
-                include: { cargo: true } // Traz os dados do cargo também
+                include: { cargo: true }
             });
             if (!user)
                 return res.status(404).json({ error: 'Usuário não encontrado' });
@@ -92,13 +99,24 @@ class UserController {
         }
     }
     static async update(req, res) {
-        if (req.user?.role !== 'ADMIN')
+        //  Permitir ADMIN e RH
+        if (!['ADMIN', 'RH'].includes(req.user?.role || ''))
             return res.status(403).json({ error: 'Acesso negado.' });
         const id = req.params.id;
         if (!id)
             return res.status(400).json({ error: 'ID não fornecido.' });
         try {
             const { nome, email, matricula, role, password, cargoId, cnhNumero, cnhCategoria, cnhValidade, dataAdmissao } = req.body;
+            // Segurança: RH não pode promover ninguém a ADMIN nem alterar dados de um ADMIN
+            if (req.user?.role === 'RH') {
+                const alvo = await prisma_1.prisma.user.findUnique({ where: { id }, select: { role: true } });
+                if (alvo?.role === 'ADMIN') {
+                    return res.status(403).json({ error: 'RH não pode alterar dados de um Administrador.' });
+                }
+                if (role === 'ADMIN') {
+                    return res.status(403).json({ error: 'RH não pode promover usuários a Administrador.' });
+                }
+            }
             const data = {
                 nome, email, role,
                 matricula: matricula || null,
@@ -127,7 +145,8 @@ class UserController {
         }
     }
     static async delete(req, res) {
-        if (req.user?.role !== 'ADMIN')
+        // Permitir ADMIN e RH
+        if (!['ADMIN', 'RH'].includes(req.user?.role || ''))
             return res.status(403).json({ error: 'Acesso negado.' });
         const id = req.params.id;
         if (!id)
@@ -135,6 +154,13 @@ class UserController {
         if (req.user?.userId === id)
             return res.status(400).json({ error: 'Não pode remover a si mesmo.' });
         try {
+            // Segurança: RH não apaga ADMIN
+            if (req.user?.role === 'RH') {
+                const alvo = await prisma_1.prisma.user.findUnique({ where: { id }, select: { role: true } });
+                if (alvo?.role === 'ADMIN') {
+                    return res.status(403).json({ error: 'RH não pode remover um Administrador.' });
+                }
+            }
             await prisma_1.prisma.user.delete({ where: { id } });
             res.json({ message: 'Usuário removido' });
         }

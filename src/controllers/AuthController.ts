@@ -4,7 +4,7 @@ import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
 import { AuthenticatedRequest } from '../middleware/auth';
-import { env } from '../config/env'; // Importação centralizada das configurações
+import { env } from '../config/env';
 
 export class AuthController {
 
@@ -18,11 +18,10 @@ export class AuthController {
                 return res.status(401).json({ error: 'Credenciais inválidas' });
             }
 
-            // Uso seguro do env.TOKEN_SECRET (já validado ao iniciar o app)
             const token = jwt.sign(
                 { userId: user.id, role: user.role },
                 env.TOKEN_SECRET,
-                { expiresIn: '8h' }
+                { expiresIn: '30d' } 
             );
 
             res.status(200).json({
@@ -44,11 +43,10 @@ export class AuthController {
             const user = await prisma.user.findFirst({ where: { loginToken } });
             if (!user) return res.status(401).json({ error: 'Token inválido.' });
 
-            // Uso seguro do env.TOKEN_SECRET
             const token = jwt.sign(
                 { userId: user.id, role: user.role },
                 env.TOKEN_SECRET,
-                { expiresIn: '8h' }
+                { expiresIn: '30d' }
             );
 
             res.status(200).json({
@@ -64,7 +62,6 @@ export class AuthController {
 
     static async generateToken(req: AuthenticatedRequest, res: Response) {
         try {
-            // 🔒 VALIDAÇÃO DE SEGURANÇA (ADMIN ou ENCARREGADO)
             if (req.user?.role !== 'ADMIN' && req.user?.role !== 'ENCARREGADO') {
                 return res.status(403).json({ error: 'Acesso negado. Apenas gestores podem gerar QR Code.' });
             }
