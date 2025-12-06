@@ -70,8 +70,8 @@ enum UserRole {
   OPERADOR
   ENCARREGADO
   ADMIN
-  RH           // Novo papel
-  COORDENADOR  // Novo papel
+  RH            // Novo papel
+  COORDENADOR   // Novo papel
 }
 
 model User {
@@ -96,7 +96,7 @@ model User {
   dataAdmissao DateTime?
 
   // Acesso Rápido / Recuperação
-  loginToken          String?   @unique
+  loginToken           String?   @unique
   // REMOVIDO: loginTokenExpiresAt DateTime? <-- Garantia de permanência
 
   createdAt DateTime @default(now())
@@ -131,9 +131,9 @@ model Veiculo {
   updatedAt DateTime @updatedAt
 
   // Relacionamentos
-  jornadas         Jornada[]
-  abastecimentos   Abastecimento[]
-  ordensServico    OrdemServico[]
+  jornadas           Jornada[]
+  abastecimentos     Abastecimento[]
+  ordensServico      OrdemServico[]
   planosManutencao PlanoManutencao[]
 }
 
@@ -152,6 +152,7 @@ model Produto {
 enum TipoFornecedor {
   POSTO
   OFICINA
+  LAVA_JATO  // <-- Adicionado conforme solicitado
   OUTROS
 }
 
@@ -211,16 +212,16 @@ model Abastecimento {
   fotoNotaFiscalUrl String?
   createdAt         DateTime @default(now())
 
-  veiculo      Veiculo    @relation(fields: [veiculoId], references: [id])
-  veiculoId    String
+  veiculo       Veiculo    @relation(fields: [veiculoId], references: [id])
+  veiculoId     String
   
-  operador     User       @relation(fields: [operadorId], references: [id])
-  operadorId   String
+  operador      User       @relation(fields: [operadorId], references: [id])
+  operadorId    String
   
-  fornecedor   Fornecedor @relation(fields: [fornecedorId], references: [id])
+  fornecedor    Fornecedor @relation(fields: [fornecedorId], references: [id])
   fornecedorId String
   
-  itens        ItemAbastecimento[]
+  itens         ItemAbastecimento[]
 }
 
 model ItemAbastecimento {
@@ -261,15 +262,15 @@ model OrdemServico {
   createdAt          DateTime       @default(now())
 
   // Relação opcional
-  veiculo       Veiculo?           @relation(fields: [veiculoId], references: [id])
+  veiculo        Veiculo?           @relation(fields: [veiculoId], references: [id])
   
-  fornecedor    Fornecedor         @relation(fields: [fornecedorId], references: [id])
-  fornecedorId  String
+  fornecedor     Fornecedor         @relation(fields: [fornecedorId], references: [id])
+  fornecedorId   String
   
-  encarregado   User               @relation(fields: [encarregadoId], references: [id])
+  encarregado    User               @relation(fields: [encarregadoId], references: [id])
   encarregadoId String
   
-  itens         ItemOrdemServico[]
+  itens          ItemOrdemServico[]
 }
 
 model ItemOrdemServico {
@@ -288,16 +289,16 @@ model ItemOrdemServico {
 }
 
 model PlanoManutencao {
-  id          String                  @id @default(cuid())
-  descricao   String                  // Ex: "Troca de Óleo Motor"
+  id                    String                  @id @default(cuid())
+  descricao             String                  // Ex: "Troca de Óleo Motor"
   tipoIntervalo TipoIntervaloManutencao
-  valorIntervalo Float                // Ex: 10000 (se KM) ou 180 (se dias)
+  valorIntervalo Float                 // Ex: 10000 (se KM) ou 180 (se dias)
   
   kmProximaManutencao   Float?        // Calculado automaticamente pelo sistema
   dataProximaManutencao DateTime?     // Calculado automaticamente pelo sistema
 
-  veiculo     Veiculo @relation(fields: [veiculoId], references: [id])
-  veiculoId   String
+  veiculo       Veiculo @relation(fields: [veiculoId], references: [id])
+  veiculoId     String
 }
 
 // ==========================================================
@@ -307,9 +308,9 @@ model PlanoManutencao {
 enum TipoProduto {
   COMBUSTIVEL
   ADITIVO
-  LAVAGEM      // Adicionado para controle de lavagens
-  PECA         // Adicionado para peças de manutenção
-  SERVICO      // Serviços gerais
+  LAVAGEM       // Adicionado para controle de lavagens
+  PECA          // Adicionado para peças de manutenção
+  SERVICO       // Serviços gerais
   OUTRO
 }
 
