@@ -82,6 +82,9 @@ model User {
   matricula String?  @unique
   role      UserRole @default(OPERADOR)
   
+  // Novo campo para Foto de Perfil (Avatar/Crachá)
+  fotoUrl   String?
+  
   // --- Vínculo de RH ---
   cargo   Cargo? @relation(fields: [cargoId], references: [id])
   cargoId String?
@@ -116,7 +119,7 @@ model Veiculo {
   placa            String          @unique
   modelo           String
   ano              Int
-  tipoVeiculo      String?         // Ex: "Poliguindaste", "Munck"
+  tipoVeiculo      String?         // Ex: "Poliguindaste", "Vácuo", "Munck"
   tipoCombustivel  TipoCombustivel @default(DIESEL_S10)
   capacidadeTanque Float?
   
@@ -135,11 +138,11 @@ model Veiculo {
 }
 
 model Produto {
-  id            String   @id @default(cuid())
-  nome          String   @unique // Ex: "DIESEL S10", "FILTRO DE AR"
+  id            String      @id @default(cuid())
+  nome          String      @unique // Ex: "DIESEL S10", "FILTRO DE AR"
   tipo          TipoProduto
-  unidadeMedida String   @default("Litro") // Litro, Unidade, Peça, Hora
-  createdAt     DateTime @default(now())
+  unidadeMedida String      @default("Litro") // Litro, Unidade, Peça, Hora
+  createdAt     DateTime    @default(now())
 
   itensAbastecimento ItemAbastecimento[]
   itensOrdemServico  ItemOrdemServico[]
@@ -293,7 +296,9 @@ model PlanoManutencao {
 enum TipoProduto {
   COMBUSTIVEL
   ADITIVO
-  SERVICO
+  LAVAGEM      // Adicionado para controle de lavagens
+  PECA         // Adicionado para peças de manutenção
+  SERVICO      // Serviços gerais
   OUTRO
 }
 
