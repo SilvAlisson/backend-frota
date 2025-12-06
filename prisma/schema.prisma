@@ -97,7 +97,7 @@ model User {
 
   // Acesso Rápido / Recuperação
   loginToken          String?   @unique
-  loginTokenExpiresAt DateTime?
+  // REMOVIDO: loginTokenExpiresAt DateTime? <-- Garantia de permanência
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -148,10 +148,21 @@ model Produto {
   itensOrdemServico  ItemOrdemServico[]
 }
 
+// NOVO ENUM PARA FORNECEDORES
+enum TipoFornecedor {
+  POSTO
+  OFICINA
+  OUTROS
+}
+
 model Fornecedor {
   id        String   @id @default(cuid())
   nome      String   @unique
   cnpj      String?  @unique
+  
+  // NOVO CAMPO DE CLASSIFICAÇÃO
+  tipo      TipoFornecedor @default(OUTROS)
+  
   createdAt DateTime @default(now())
 
   abastecimentos Abastecimento[]

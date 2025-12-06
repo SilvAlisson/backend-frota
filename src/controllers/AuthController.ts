@@ -21,13 +21,19 @@ export class AuthController {
             const token = jwt.sign(
                 { userId: user.id, role: user.role },
                 env.TOKEN_SECRET,
-                { expiresIn: '30d' } 
+                { expiresIn: '30d' }
             );
 
             res.status(200).json({
                 message: 'Login bem-sucedido',
                 token,
-                user: { id: user.id, nome: user.nome, email: user.email, role: user.role },
+                user: {
+                    id: user.id,
+                    nome: user.nome,
+                    email: user.email,
+                    role: user.role,
+                    fotoUrl: user.fotoUrl
+                },
             });
         } catch (error) {
             console.error("Erro no login:", error);
@@ -52,7 +58,13 @@ export class AuthController {
             res.status(200).json({
                 message: 'Login por token OK',
                 token,
-                user: { id: user.id, nome: user.nome, email: user.email, role: user.role },
+                user: {
+                    id: user.id,
+                    nome: user.nome,
+                    email: user.email,
+                    role: user.role,
+                    fotoUrl: user.fotoUrl
+                },
             });
         } catch (error) {
             console.error("Erro login token:", error);
