@@ -1,4 +1,3 @@
-// src/controllers/JornadaController.ts
 import { Response } from 'express';
 import { prisma } from '../lib/prisma';
 import { KmService } from '../services/KmService';
@@ -175,9 +174,11 @@ export class JornadaController {
         }
     }
 
-    // --- Demais métodos (Listagens e Histórico) ---
+    // --- LISTAR ABERTAS  ---
     static async listarAbertas(req: AuthenticatedRequest, res: Response) {
-        if (!['ADMIN', 'ENCARREGADO'].includes(req.user?.role || '')) return res.sendStatus(403);
+        const permitido = ['ADMIN', 'ENCARREGADO', 'OPERADOR', 'COORDENADOR'].includes(req.user?.role || '');
+        if (!permitido) return res.sendStatus(403);
+
         try {
             const list = await prisma.jornada.findMany({
                 where: { kmFim: null },
@@ -205,7 +206,7 @@ export class JornadaController {
         if (!['ADMIN', 'ENCARREGADO'].includes(req.user?.role || '')) return res.sendStatus(403);
         try {
             const { dataInicio, dataFim, veiculoId, operadorId } = req.query;
-            const where: any = { kmFim: { not: null } }; // Só finalizadas
+            const where: any = { kmFim: { not: null } };
 
             if (dataInicio) where.dataInicio = { gte: new Date(String(dataInicio)) };
             if (dataFim) {
