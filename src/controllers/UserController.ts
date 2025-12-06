@@ -15,18 +15,18 @@ export class UserController {
         try {
             const {
                 nome, email, password, matricula, role,
-                // Novos campos do RH
-                cargoId, cnhNumero, cnhCategoria, cnhValidade, dataAdmissao
+                // Novos campos do RH e FOTO
+                cargoId, cnhNumero, cnhCategoria, cnhValidade, dataAdmissao, fotoUrl
             } = req.body;
 
             // Bloqueio de segurança: RH não pode criar um ADMIN, apenas outro RH ou níveis abaixo
             if (req.user?.role === 'RH' && role === 'ADMIN') {
-                 return res.status(403).json({ error: 'RH não pode criar usuários Administradores.' });
+                return res.status(403).json({ error: 'RH não pode criar usuários Administradores.' });
             }
 
             if (role === 'ADMIN' && req.user?.role !== 'ADMIN') {
-                 // Redundância de segurança
-                 return res.status(403).json({ error: 'Apenas ADMIN pode criar outro ADMIN.' });
+                // Redundância de segurança
+                return res.status(403).json({ error: 'Apenas ADMIN pode criar outro ADMIN.' });
             }
 
             if (!nome || !email || !password || !role) {
@@ -43,6 +43,7 @@ export class UserController {
                     password: hashedPassword,
                     matricula: matricula || null,
                     role,
+                    fotoUrl: fotoUrl || null, // <--- ADICIONADO AQUI
                     // Campos opcionais de RH
                     cargoId: cargoId || null,
                     cnhNumero: cnhNumero || null,
@@ -74,7 +75,8 @@ export class UserController {
                     email: true,
                     role: true,
                     matricula: true,
-                    cargo: { select: { nome: true } } 
+                    fotoUrl: true, // <--- ADICIONADO PARA RETORNAR NA LISTA
+                    cargo: { select: { nome: true } }
                 },
                 orderBy: { nome: 'asc' }
             });
@@ -95,7 +97,7 @@ export class UserController {
         try {
             const user = await prisma.user.findUnique({
                 where: { id },
-                include: { cargo: true } 
+                include: { cargo: true }
             });
 
             if (!user) return res.status(404).json({ error: 'Usuário não encontrado' });
@@ -118,23 +120,24 @@ export class UserController {
         try {
             const {
                 nome, email, matricula, role, password,
-                cargoId, cnhNumero, cnhCategoria, cnhValidade, dataAdmissao
+                cargoId, cnhNumero, cnhCategoria, cnhValidade, dataAdmissao, fotoUrl
             } = req.body;
 
             // Segurança: RH não pode promover ninguém a ADMIN nem alterar dados de um ADMIN
             if (req.user?.role === 'RH') {
-                 const alvo = await prisma.user.findUnique({ where: { id }, select: { role: true } });
-                 if (alvo?.role === 'ADMIN') {
+                const alvo = await prisma.user.findUnique({ where: { id }, select: { role: true } });
+                if (alvo?.role === 'ADMIN') {
                     return res.status(403).json({ error: 'RH não pode alterar dados de um Administrador.' });
-                 }
-                 if (role === 'ADMIN') {
+                }
+                if (role === 'ADMIN') {
                     return res.status(403).json({ error: 'RH não pode promover usuários a Administrador.' });
-                 }
+                }
             }
 
             const data: any = {
                 nome, email, role,
                 matricula: matricula || null,
+                fotoUrl: fotoUrl || null, // <--- ADICIONADO AQUI
                 cargoId: cargoId || null,
                 cnhNumero: cnhNumero || null,
                 cnhCategoria: cnhCategoria || null,
@@ -150,13 +153,15 @@ export class UserController {
             const updated = await prisma.user.update({
                 where: { id },
                 data,
-                select: { id: true, nome: true, email: true, role: true, matricula: true }
+                // Incluí fotoUrl no retorno para garantir que o front receba a atualização
+                select: { id: true, nome: true, email: true, role: true, matricula: true, fotoUrl: true }
             });
             res.json(updated);
         } catch (error) {
             if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
                 return res.status(409).json({ error: 'Email ou matrícula já existentes.' });
             }
+            console.error(error);
             res.status(500).json({ error: 'Erro ao atualizar usuário' });
         }
     }
@@ -175,9 +180,9 @@ export class UserController {
             if (req.user?.role === 'RH') {
                 const alvo = await prisma.user.findUnique({ where: { id }, select: { role: true } });
                 if (alvo?.role === 'ADMIN') {
-                   return res.status(403).json({ error: 'RH não pode remover um Administrador.' });
+                    return res.status(403).json({ error: 'RH não pode remover um Administrador.' });
                 }
-           }
+            }
 
             await prisma.user.delete({ where: { id } });
             res.json({ message: 'Usuário removido' });
