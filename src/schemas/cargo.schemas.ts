@@ -1,16 +1,21 @@
 import { z } from 'zod';
 
 const requisitoSchema = z.object({
-    nome: z.string().min(2, { error: "Nome do treinamento é obrigatório" }),
-    validadeMeses: z.number().min(0, { error: "Validade inválida" }),
-    diasAntecedenciaAlerta: z.number().min(1).default(30)
+    nome: z.string({ error: "Nome do requisito obrigatório" }).min(2),
+    validadeMeses: z.coerce.number({ error: "Validade inválida" }).min(0),
+    diasAntecedenciaAlerta: z.coerce.number().min(1).default(30)
 });
 
 export const cargoSchema = z.object({
-    nome: z.string().min(3, { error: "Nome do cargo deve ter no mínimo 3 caracteres" }),
-    descricao: z.string().optional().nullable(),
+    body: z.object({
+        nome: z.string({ error: "Nome obrigatório" }).min(3, { error: "Mínimo 3 caracteres" }),
 
-    requisitos: z.array(requisitoSchema).optional()
+        descricao: z.string().optional().nullable().transform(v => v === "" ? null : v),
+
+        requisitos: z.array(requisitoSchema).optional()
+    })
 });
 
-export const addRequisitoSchema = requisitoSchema;
+export const addRequisitoSchema = z.object({
+    body: requisitoSchema
+});

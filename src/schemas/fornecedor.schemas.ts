@@ -1,19 +1,20 @@
 import { z } from 'zod';
 
 const TipoFornecedorSchema = z.enum(['POSTO', 'OFICINA', 'LAVA_JATO', 'SEGURADORA', 'OUTROS'], {
-    error: "Tipo de fornecedor inválido."
+    error: "Tipo inválido"
 });
 
 export const fornecedorSchema = z.object({
-    nome: z.string().min(2, { error: "Nome é obrigatório." }),
+    body: z.object({
+        nome: z.string({ error: "Nome é obrigatório" }).min(2),
 
-    tipo: TipoFornecedorSchema,
+        tipo: TipoFornecedorSchema.optional().default('OUTROS'),
 
-    // Mantida a validação de CNPJ, permitindo que seja um CNPJ válido OU vazio/null.
-    cnpj: z.union([
-        z.literal(''),
-        z.string().regex(/^\d{2}\.\d{3}\.\d{3}\/\d{4}-\d{2}$/, { message: "CNPJ inválido. Use o formato: 00.000.000/0000-00" }),
-    ])
-        .optional()
-        .nullable(),
+        cnpj: z.union([
+            z.string().length(0),
+            z.null(),
+            z.undefined(),
+            z.string().regex(/^\d{2}\.\d{3}\.\d{3}\/\d{4}-\d{2}$/, { message: "CNPJ inválido" })
+        ]).optional().transform(e => e === "" ? null : e),
+    })
 });

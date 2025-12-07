@@ -1,14 +1,38 @@
 import { Request, Response, NextFunction } from 'express';
-import { ZodSchema } from 'zod';
+import { ZodError, ZodType } from 'zod';
 
-export const validate = (schema: ZodSchema) => (req: Request, res: Response, next: NextFunction) => {
+export const validate = (schema: ZodType<any, any>) => async (
+    req: Request,
+    res: Response,
+    next: NextFunction
+) => {
     try {
-        schema.parse(req.body);
-        next();
-    } catch (error: any) {
-        return res.status(400).json({
-            error: 'Dados inválidos',
-            details: error.errors.map((e: any) => ({ field: e.path[0], message: e.message }))
+        // 1. Validação assíncrona (importante para transforms assíncronos se houver)
+        const result = await schema.parseAsync({
+            body: req.body,
+            query: req.query,
+            params: req.params,
         });
+
+        req.body = result.body;
+        req.query = result.query;
+        req.params = result.params;
+
+        return next();
+    } catch (error) {
+        if (error instanceof ZodError) {
+            const errorMessages = error.issues.map((issue) => {
+                const path = issue.path.join('.').replace('body.', '');
+                return { field: path, message: issue.message };
+            });
+
+            return res.status(400).json({
+                error: 'Dados inválidos',
+                details: errorMessages
+            });
+        }
+
+        console.error("Validation error:", error);
+        return res.status(500).json({ error: 'Erro interno de validação' });
     }
 };
