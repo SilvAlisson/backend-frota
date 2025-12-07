@@ -7,16 +7,16 @@ export const validate = (schema: ZodType<any, any>) => async (
     next: NextFunction
 ) => {
     try {
-        // 1. Validação assíncrona (importante para transforms assíncronos se houver)
+        // 1. Validação assíncrona
         const result = await schema.parseAsync({
             body: req.body,
             query: req.query,
             params: req.params,
         });
 
-        req.body = result.body;
-        req.query = result.query;
-        req.params = result.params;
+        if (result.body) req.body = result.body;
+        if (result.query) req.query = result.query;
+        if (result.params) req.params = result.params;
 
         return next();
     } catch (error) {
