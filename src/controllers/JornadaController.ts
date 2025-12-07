@@ -33,7 +33,6 @@ export class JornadaController {
             });
 
             // O KM de referência é o maior entre o histórico e o início da jornada aberta
-            // Se o Junior abriu com 10.000, o Carlos não pode abrir com 9.990.
             const kmReferencia = jornadaAbertaAnterior
                 ? Math.max(ultimoKMConsolidado, jornadaAbertaAnterior.kmInicio)
                 : ultimoKMConsolidado;
@@ -47,12 +46,10 @@ export class JornadaController {
             const transacoes = [];
 
             // =================================================================================
-            // PASSO 2: RESOLUÇÃO DE PENDÊNCIAS (Cenários B e C)
+            // PASSO 2: RESOLUÇÃO DE PENDÊNCIAS 
             // =================================================================================
 
             if (jornadaAbertaAnterior) {
-                // --- CENÁRIO B: Troca de Turno (Jornada Aberta) ---
-                // O Junior esqueceu aberta. O Carlos assume e fecha a do Junior com o KM atual.
                 console.log(`[Rendição] Fechando jornada anterior aberta (ID: ${jornadaAbertaAnterior.id})`);
 
                 transacoes.push(prisma.jornada.update({
@@ -65,8 +62,6 @@ export class JornadaController {
                 }));
 
             } else {
-                // --- CENÁRIO C: Correção Pós-Cron (Jornada Fechada pelo Sistema) ---
-                // Junior esqueceu, passou 17h, o sistema fechou zerado. Agora Carlos corrige.
 
                 // Busca a última jornada fechada desse veículo
                 const ultimaJornadaFechada = await prisma.jornada.findFirst({
@@ -74,12 +69,11 @@ export class JornadaController {
                     orderBy: { dataFim: 'desc' }
                 });
 
-                // Verifica se foi o robô que fechou (pela tag SYSTEM_AUTO_CLOSE)
+                // Verifica se foi o robô que fechou
                 if (ultimaJornadaFechada && ultimaJornadaFechada.observacoes?.includes('[SYSTEM_AUTO_CLOSE]')) {
                     console.log(`[Correção] Atualizando jornada fechada pelo sistema (ID: ${ultimaJornadaFechada.id})`);
 
                     // A jornada estava "zerada" (kmFim = kmInicio). 
-                    // Agora atualizamos o kmFim para o kmInicio do Carlos, contabilizando a rodagem do Junior.
                     transacoes.push(prisma.jornada.update({
                         where: { id: ultimaJornadaFechada.id },
                         data: {
@@ -144,7 +138,7 @@ export class JornadaController {
                 return res.status(400).json({ error: `KM Final (${kmFimFloat}) não pode ser menor que o Inicial (${jornada.kmInicio}).` });
             }
 
-            // Validação Cruzada (Anti-Fraude)
+            // Validação Cruzada
             // Verifica se o veículo "andou pra trás" com base em abastecimentos feitos DURANTE a jornada
             const ultimoKMGlobal = await KmService.getUltimoKMRegistrado(jornada.veiculoId);
 
