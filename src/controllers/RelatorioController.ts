@@ -3,34 +3,67 @@ import { prisma } from '../lib/prisma';
 import { KmService } from '../services/KmService';
 import { AuthenticatedRequest } from '../middleware/auth';
 import { addDays } from '../utils/dateUtils';
-import { Prisma } from '@prisma/client';
+import { z } from 'zod';
+import { relatorioQuerySchema } from '../schemas/relatorio.schemas';
+
+// Extraímos a tipagem do schema (Query Params)
+type RelatorioQuery = z.infer<typeof relatorioQuerySchema>['query'];
 
 export class RelatorioController {
 
     static async sumario(req: AuthenticatedRequest, res: Response) {
-        if (req.user?.role !== 'ADMIN' && req.user?.role !== 'ENCARREGADO') return res.status(403).json({ error: 'Acesso negado' });
+        if (req.user?.role !== 'ADMIN' && req.user?.role !== 'ENCARREGADO') {
+            return res.status(403).json({ error: 'Acesso negado' });
+        }
+
         try {
-            const { ano, mes, veiculoId } = req.query;
-            const anoNum = ano ? parseInt(ano as string) : new Date().getFullYear();
-            const mesNum = mes ? parseInt(mes as string) : new Date().getMonth() + 1;
+            // req.query já tipado e convertido para números pelo Zod
+            const { ano, mes, veiculoId } = req.query as unknown as RelatorioQuery;
+
+            const anoNum = ano || new Date().getFullYear();
+            const mesNum = mes || new Date().getMonth() + 1;
 
             const dataInicio = new Date(anoNum, mesNum - 1, 1);
             const dataFim = new Date(anoNum, mesNum, 1);
 
             const filtroData = { gte: dataInicio, lt: dataFim };
-            const filtroVeiculo = veiculoId ? { veiculoId: String(veiculoId) } : {};
+            const filtroVeiculo = veiculoId ? { veiculoId } : {};
 
             const [combustivel, aditivo, manutencao, litros, jornadas] = await Promise.all([
-                prisma.itemAbastecimento.aggregate({ _sum: { valorTotal: true }, where: { produto: { tipo: 'COMBUSTIVEL' }, abastecimento: { dataHora: filtroData, ...filtroVeiculo } } }),
-                prisma.itemAbastecimento.aggregate({ _sum: { valorTotal: true }, where: { produto: { tipo: 'ADITIVO' }, abastecimento: { dataHora: filtroData, ...filtroVeiculo } } }),
-                prisma.ordemServico.aggregate({ _sum: { custoTotal: true }, where: { data: filtroData, ...filtroVeiculo } }),
-                prisma.itemAbastecimento.aggregate({ _sum: { quantidade: true }, where: { produto: { tipo: 'COMBUSTIVEL' }, abastecimento: { dataHora: filtroData, ...filtroVeiculo } } }),
-                prisma.jornada.findMany({ where: { dataInicio: filtroData, kmFim: { not: null }, ...filtroVeiculo }, select: { kmInicio: true, kmFim: true } })
+                prisma.itemAbastecimento.aggregate({
+                    _sum: { valorTotal: true },
+                    where: {
+                        produto: { tipo: 'COMBUSTIVEL' },
+                        abastecimento: { dataHora: filtroData, ...filtroVeiculo }
+                    }
+                }),
+                prisma.itemAbastecimento.aggregate({
+                    _sum: { valorTotal: true },
+                    where: {
+                        produto: { tipo: 'ADITIVO' },
+                        abastecimento: { dataHora: filtroData, ...filtroVeiculo }
+                    }
+                }),
+                prisma.ordemServico.aggregate({
+                    _sum: { custoTotal: true },
+                    where: { data: filtroData, ...filtroVeiculo }
+                }),
+                prisma.itemAbastecimento.aggregate({
+                    _sum: { quantidade: true },
+                    where: {
+                        produto: { tipo: 'COMBUSTIVEL' },
+                        abastecimento: { dataHora: filtroData, ...filtroVeiculo }
+                    }
+                }),
+                prisma.jornada.findMany({
+                    where: { dataInicio: filtroData, kmFim: { not: null }, ...filtroVeiculo },
+                    select: { kmInicio: true, kmFim: true }
+                })
             ]);
 
             const kmTotal = jornadas.reduce((acc, j) => acc + ((j.kmFim ?? 0) - j.kmInicio), 0);
 
-            // Conversão explícita de Decimal para Number para permitir a soma
+            // Conversão de Decimal para Number
             const totalCombustivel = Number(combustivel._sum.valorTotal || 0);
             const totalAditivo = Number(aditivo._sum.valorTotal || 0);
             const totalManutencao = Number(manutencao._sum.custoTotal || 0);
@@ -51,29 +84,39 @@ export class RelatorioController {
                 }
             });
         } catch (e) {
-            console.error(e); // Log do erro para debug
+            console.error(e);
             res.status(500).json({ error: 'Erro ao gerar sumário.' });
         }
     }
 
     static async ranking(req: AuthenticatedRequest, res: Response) {
-        if (req.user?.role !== 'ADMIN' && req.user?.role !== 'ENCARREGADO') return res.status(403).json({ error: 'Acesso negado' });
+        if (req.user?.role !== 'ADMIN' && req.user?.role !== 'ENCARREGADO') {
+            return res.status(403).json({ error: 'Acesso negado' });
+        }
+
         try {
-            const { ano, mes } = req.query;
-            const anoNum = ano ? parseInt(ano as string) : new Date().getFullYear();
-            const mesNum = mes ? parseInt(mes as string) : new Date().getMonth() + 1;
+            const { ano, mes } = req.query as unknown as RelatorioQuery;
+
+            const anoNum = ano || new Date().getFullYear();
+            const mesNum = mes || new Date().getMonth() + 1;
+
             const dataInicio = new Date(anoNum, mesNum - 1, 1);
             const dataFim = new Date(anoNum, mesNum, 1);
 
-            // Busca jornadas e abastecimentos em paralelo
             const [jornadas, abastecimentos] = await Promise.all([
                 prisma.jornada.findMany({
                     where: { dataInicio: { gte: dataInicio, lt: dataFim }, kmFim: { not: null } },
                     select: { operadorId: true, kmInicio: true, kmFim: true }
                 }),
                 prisma.itemAbastecimento.findMany({
-                    where: { produto: { tipo: 'COMBUSTIVEL' }, abastecimento: { dataHora: { gte: dataInicio, lt: dataFim } } },
-                    select: { quantidade: true, abastecimento: { select: { operadorId: true } } }
+                    where: {
+                        produto: { tipo: 'COMBUSTIVEL' },
+                        abastecimento: { dataHora: { gte: dataInicio, lt: dataFim } }
+                    },
+                    select: {
+                        quantidade: true,
+                        abastecimento: { select: { operadorId: true } }
+                    }
                 })
             ]);
 
@@ -89,7 +132,10 @@ export class RelatorioController {
                 litrosPorOperador.set(opId, (litrosPorOperador.get(opId) || 0) + item.quantidade);
             });
 
-            const operadores = await prisma.user.findMany({ where: { role: 'OPERADOR' }, select: { id: true, nome: true } });
+            const operadores = await prisma.user.findMany({
+                where: { role: 'OPERADOR' },
+                select: { id: true, nome: true }
+            });
 
             const ranking = operadores.map(op => {
                 const km = kmsPorOperador.get(op.id) || 0;
@@ -110,7 +156,10 @@ export class RelatorioController {
     }
 
     static async alertas(req: AuthenticatedRequest, res: Response) {
-        if (req.user?.role !== 'ADMIN' && req.user?.role !== 'ENCARREGADO' && req.user?.role !== 'RH') return res.status(403).json({ error: 'Acesso negado' });
+        if (!['ADMIN', 'ENCARREGADO', 'RH'].includes(req.user?.role || '')) {
+            return res.status(403).json({ error: 'Acesso negado' });
+        }
+
         try {
             const alertas = [];
             const hoje = new Date();

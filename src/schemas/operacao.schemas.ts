@@ -2,11 +2,11 @@ import { z } from 'zod';
 
 const itemSchema = z.object({
     produtoId: z.string({ error: "Produto obrigatório" }).min(1),
-
-    quantidade: z.coerce.number({ error: "Qtd inválida" }).positive({ error: "> 0" }),
+    quantidade: z.coerce.number({ error: "Qtd inválida" }).positive({ error: "Qtd deve ser > 0" }),
     valorPorUnidade: z.coerce.number({ error: "Valor inválido" }).min(0),
 });
 
+// --- Abastecimento ---
 export const abastecimentoSchema = z.object({
     body: z.object({
         veiculoId: z.string({ error: "Veículo obrigatório" }).min(1),
@@ -20,21 +20,29 @@ export const abastecimentoSchema = z.object({
         justificativa: z.string().optional().nullable().transform(v => v === "" ? null : v),
         observacoes: z.string().optional().nullable().transform(v => v === "" ? null : v),
 
+        // URL pode vir vazia se não tiver nota? Se for obrigatória:
         fotoNotaFiscalUrl: z.string({ error: "URL da foto obrigatória" }).url().optional().nullable(),
 
         itens: z.array(itemSchema).min(1, { error: "Mínimo 1 item" }),
     })
 });
 
+// --- Manutenção ---
 export const manutencaoSchema = z.object({
     body: z.object({
-        veiculoId: z.string().optional().nullable(),
+        // Veículo é opcional em manutenção (ex: conserto de peça avulsa), mas se vier, é validado
+        veiculoId: z.string().optional().nullable().transform(v => v === "" ? null : v),
+
+        // KM atual também opcional se não tiver veículo
         kmAtual: z.coerce.number().optional().nullable(),
 
         fornecedorId: z.string({ error: "Fornecedor obrigatório" }).min(1),
+
         data: z.coerce.date({ error: "Data inválida" }),
 
-        tipo: z.enum(['PREVENTIVA', 'CORRETIVA', 'LAVAGEM'], { error: "Tipo inválido" }),
+        tipo: z.enum(['PREVENTIVA', 'CORRETIVA', 'LAVAGEM'], {
+            error: "Tipo inválido. Use: PREVENTIVA, CORRETIVA ou LAVAGEM"
+        }),
 
         observacoes: z.string().optional().nullable().transform(v => v === "" ? null : v),
         fotoComprovanteUrl: z.string().optional().nullable().transform(v => v === "" ? null : v),

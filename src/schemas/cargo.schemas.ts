@@ -17,5 +17,8 @@ export const cargoSchema = z.object({
 });
 
 export const addRequisitoSchema = z.object({
+    params: z.object({
+        id: z.string({ error: "ID do cargo inválido" })
+    }),
     body: requisitoSchema
 });

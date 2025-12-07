@@ -1,31 +1,13 @@
-import { Response } from 'express';
+import { Response, Request } from 'express';
 import { prisma } from '../lib/prisma';
 import { AuthenticatedRequest } from '../middleware/auth';
 import { z } from 'zod';
+import { cargoSchema, addRequisitoSchema } from '../schemas/cargo.schemas';
+import { Prisma } from '@prisma/client'; // Importar Prisma para tratar erros
 
-// --- Schemas Locais ---
-
-const requisitoSchema = z.object({
-    nome: z.string({ error: "Nome do treinamento é obrigatório" }).min(2, "Nome muito curto"),
-    validadeMeses: z.coerce.number({ error: "Validade deve ser número" }).int().min(0),
-    diasAntecedenciaAlerta: z.coerce.number().int().default(30)
-});
-
-const createCargoSchema = z.object({
-    nome: z.string({ error: "Nome é obrigatório" }).min(3, "Nome do cargo deve ter no mínimo 3 caracteres"),
-    descricao: z.string().optional().nullable(),
-    requisitos: z.array(requisitoSchema).optional()
-});
-
-const paramsIdSchema = z.object({
-    id: z.string().min(1, "ID inválido")
-});
-
-const paramsRequisitoIdSchema = z.object({
-    requisitoId: z.string().min(1, "ID do requisito inválido")
-});
-
-// -----------------------------------------------------------
+// Extraímos os tipos dos schemas globais
+type CreateCargoData = z.infer<typeof cargoSchema>['body'];
+type AddRequisitoData = z.infer<typeof addRequisitoSchema>['body'];
 
 export class CargoController {
 
@@ -35,22 +17,14 @@ export class CargoController {
             return res.status(403).json({ error: 'Acesso negado.' });
         }
 
-        const validation = createCargoSchema.safeParse(req.body);
-
-        if (!validation.success) {
-            return res.status(400).json({
-                error: 'Dados inválidos',
-                details: validation.error.flatten().fieldErrors
-            });
-        }
-
-        const { nome, descricao, requisitos } = validation.data;
-
         try {
+            const { nome, descricao, requisitos } = req.body as CreateCargoData;
+
             const cargo = await prisma.cargo.create({
                 data: {
                     nome,
-                    descricao: descricao || null,
+                    descricao: descricao ?? null,
+
                     ...(requisitos && requisitos.length > 0 ? {
                         requisitos: {
                             create: requisitos
@@ -62,7 +36,8 @@ export class CargoController {
 
             res.status(201).json(cargo);
         } catch (e: any) {
-            if (e.code === 'P2002') {
+            // Tratamento de erro do Prisma (P2002 = Unique Constraint)
+            if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
                 return res.status(409).json({ error: 'Já existe um cargo com este nome.' });
             }
             console.error("Erro ao criar cargo:", e);
@@ -87,20 +62,18 @@ export class CargoController {
 
     static async delete(req: AuthenticatedRequest, res: Response) {
         if (!['ADMIN', 'RH'].includes(req.user?.role || '')) {
-            return res.status(403).json({ error: 'Apenas RH/Admin podem deletar cargos.' });
+            return res.status(403).json({ error: 'Acesso negado.' });
         }
 
-        const paramsCheck = paramsIdSchema.safeParse(req.params);
-        if (!paramsCheck.success) return res.status(400).json({ error: "ID inválido." });
-
-        const { id } = paramsCheck.data;
+        const { id } = req.params;
+        if (!id) return res.status(400).json({ error: "ID inválido." });
 
         try {
             await prisma.cargo.delete({ where: { id } });
             res.json({ message: 'Cargo removido com sucesso.' });
         } catch (e: any) {
-            if (e.code === 'P2003') {
-                return res.status(400).json({ error: 'Não é possível remover cargo com colaboradores vinculados.' });
+            if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2003') {
+                return res.status(409).json({ error: 'Não é possível remover cargo com colaboradores vinculados.' });
             }
             res.status(500).json({ error: 'Erro ao remover cargo.' });
         }
@@ -110,21 +83,12 @@ export class CargoController {
     static async addRequisito(req: AuthenticatedRequest, res: Response) {
         if (!['ADMIN', 'RH'].includes(req.user?.role || '')) return res.sendStatus(403);
 
-        const paramsCheck = paramsIdSchema.safeParse(req.params);
-        if (!paramsCheck.success) return res.status(400).json({ error: "ID do cargo inválido" });
-        const { id: cargoId } = paramsCheck.data;
-
-        const bodyCheck = requisitoSchema.safeParse(req.body);
-        if (!bodyCheck.success) {
-            return res.status(400).json({
-                error: 'Dados do requisito inválidos',
-                details: bodyCheck.error.flatten().fieldErrors
-            });
-        }
-
-        const dados = bodyCheck.data;
+        const { id: cargoId } = req.params;
+        if (!cargoId) return res.status(400).json({ error: "ID do cargo inválido" });
 
         try {
+            const dados = req.body as AddRequisitoData;
+
             const cargoExiste = await prisma.cargo.findUnique({ where: { id: cargoId } });
             if (!cargoExiste) return res.status(404).json({ error: "Cargo não encontrado" });
 
@@ -148,16 +112,14 @@ export class CargoController {
     static async removeRequisito(req: AuthenticatedRequest, res: Response) {
         if (!['ADMIN', 'RH'].includes(req.user?.role || '')) return res.sendStatus(403);
 
-        const paramsCheck = paramsRequisitoIdSchema.safeParse(req.params);
-        if (!paramsCheck.success) return res.status(400).json({ error: "ID do requisito inválido" });
-
-        const { requisitoId } = paramsCheck.data;
+        const { requisitoId } = req.params;
+        if (!requisitoId) return res.status(400).json({ error: "ID do requisito inválido" });
 
         try {
             await prisma.treinamentoObrigatorio.delete({ where: { id: requisitoId } });
             res.json({ message: 'Requisito removido.' });
         } catch (e: any) {
-            if (e.code === 'P2025') {
+            if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2025') {
                 return res.status(404).json({ error: 'Requisito não encontrado.' });
             }
             res.status(500).json({ error: 'Erro ao remover requisito.' });

@@ -5,15 +5,27 @@ import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
 import { AuthenticatedRequest } from '../middleware/auth';
 import { env } from '../config/env';
+import { z } from 'zod';
+import {
+    loginSchema,
+    loginWithTokenSchema,
+    generateTokenSchema
+} from '../schemas/auth.schemas';
+
+// Extração dos tipos a partir dos Schemas
+type LoginData = z.infer<typeof loginSchema>['body'];
+type LoginTokenData = z.infer<typeof loginWithTokenSchema>['body'];
+type GenerateTokenParams = z.infer<typeof generateTokenSchema>['params'];
 
 export class AuthController {
 
     static async login(req: Request, res: Response) {
         try {
-            const { email, password } = req.body;
-            if (!email || !password) return res.status(400).json({ error: 'Credenciais obrigatórias.' });
+            // O Middleware já validou e garantiu que email/pass existem
+            const { email, password } = req.body as LoginData;
 
             const user = await prisma.user.findUnique({ where: { email } });
+
             if (!user || !await bcrypt.compare(password, user.password)) {
                 return res.status(401).json({ error: 'Credenciais inválidas' });
             }
@@ -43,8 +55,7 @@ export class AuthController {
 
     static async loginWithToken(req: Request, res: Response) {
         try {
-            const { loginToken } = req.body;
-            if (!loginToken) return res.status(400).json({ error: 'Token obrigatório.' });
+            const { loginToken } = req.body as LoginTokenData;
 
             const user = await prisma.user.findFirst({ where: { loginToken } });
             if (!user) return res.status(401).json({ error: 'Token inválido.' });
@@ -78,8 +89,8 @@ export class AuthController {
                 return res.status(403).json({ error: 'Acesso negado. Apenas gestores podem gerar QR Code.' });
             }
 
-            const { id } = req.params;
-            if (!id) return res.status(400).json({ error: 'ID necessário.' });
+            // Agora usamos req.params tipado pelo Zod
+            const { id } = req.params as GenerateTokenParams;
 
             const userToCheck = await prisma.user.findUnique({ where: { id } });
             if (!userToCheck) return res.status(404).json({ error: 'Utilizador não encontrado.' });

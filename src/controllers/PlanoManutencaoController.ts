@@ -2,6 +2,11 @@ import { Response } from 'express';
 import { prisma } from '../lib/prisma';
 import { KmService } from '../services/KmService';
 import { AuthenticatedRequest } from '../middleware/auth';
+import { z } from 'zod';
+import { planoManutencaoSchema } from '../schemas/planoManutencao.schemas';
+
+// Extraímos a tipagem do schema
+type CreatePlanoData = z.infer<typeof planoManutencaoSchema>['body'];
 
 export class PlanoManutencaoController {
 
@@ -11,22 +16,23 @@ export class PlanoManutencaoController {
         }
 
         try {
-            const { veiculoId, descricao, tipoIntervalo, valorIntervalo } = req.body;
+            // req.body já validado e tipado pelo middleware
+            const { veiculoId, descricao, tipoIntervalo, valorIntervalo } = req.body as CreatePlanoData;
 
-            if (!veiculoId || !descricao || !tipoIntervalo || !valorIntervalo) {
-                return res.status(400).json({ error: 'Todos os campos são obrigatórios.' });
-            }
-
+            // Busca KM atual para cálculo
             const kmAtual = await KmService.getUltimoKMRegistrado(veiculoId);
 
             let kmProximaManutencao: number | null = null;
             let dataProximaManutencao: Date | null = null;
 
+            // Lógica de Negócio: Calcular vencimento
             if (tipoIntervalo === 'KM') {
-                kmProximaManutencao = kmAtual + parseFloat(valorIntervalo);
+                // valorIntervalo já é number aqui
+                kmProximaManutencao = kmAtual + valorIntervalo;
             } else if (tipoIntervalo === 'TEMPO') {
                 const data = new Date();
-                data.setMonth(data.getMonth() + parseInt(valorIntervalo));
+                // valorIntervalo já é number aqui
+                data.setMonth(data.getMonth() + valorIntervalo);
                 dataProximaManutencao = data;
             }
 
@@ -35,7 +41,7 @@ export class PlanoManutencaoController {
                     veiculoId,
                     descricao,
                     tipoIntervalo,
-                    valorIntervalo: parseFloat(valorIntervalo),
+                    valorIntervalo, // Salva o número direto
                     kmProximaManutencao,
                     dataProximaManutencao,
                 },

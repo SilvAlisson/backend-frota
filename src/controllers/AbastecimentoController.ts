@@ -3,6 +3,11 @@ import { prisma } from '../lib/prisma';
 import { KmService } from '../services/KmService';
 import { AuthenticatedRequest } from '../middleware/auth';
 import { Prisma } from '@prisma/client';
+import { z } from 'zod';
+import { abastecimentoSchema } from '../schemas/operacao.schemas';
+
+// Extraímos o tipo inferido do corpo do schema
+type AbastecimentoData = z.infer<typeof abastecimentoSchema>['body'];
 
 export class AbastecimentoController {
 
@@ -12,50 +17,46 @@ export class AbastecimentoController {
         }
 
         try {
-            const {
-                veiculoId, operadorId, fornecedorId, kmOdometro, dataHora,
-                placaCartaoUsado, itens, observacoes, justificativa, fotoNotaFiscalUrl
-            } = req.body;
+            // O Zod já garantiu que os campos existem e converteu números/datas.
+            const dados = req.body as AbastecimentoData;
 
-            // Validação de campos obrigatórios
-            if (!veiculoId || !operadorId || !fornecedorId || !kmOdometro || !dataHora || !itens || !fotoNotaFiscalUrl) {
-                return res.status(400).json({ error: 'Campos obrigatórios em falta.' });
-            }
+            // Validação de Regra de Negócio (KM)
+            const ultimoKM = await KmService.getUltimoKMRegistrado(dados.veiculoId);
 
-            const kmOdometroFloat = parseFloat(kmOdometro);
-
-            // Validação Centralizada de KM
-            const ultimoKM = await KmService.getUltimoKMRegistrado(veiculoId);
-            if (kmOdometroFloat < ultimoKM) {
+            if (dados.kmOdometro < ultimoKM) {
                 return res.status(400).json({
-                    error: `KM informado (${kmOdometroFloat}) é menor que o histórico (${ultimoKM}).`
+                    error: `KM informado (${dados.kmOdometro}) é menor que o histórico (${ultimoKM}).`
                 });
             }
 
             let custoTotalGeral = 0;
-            const itensParaCriar = itens.map((item: any) => {
-                const total = parseFloat(item.quantidade) * parseFloat(item.valorPorUnidade);
+
+            const itensParaCriar = dados.itens.map((item) => {
+                const total = item.quantidade * item.valorPorUnidade;
                 custoTotalGeral += total;
                 return {
                     produtoId: item.produtoId,
-                    quantidade: parseFloat(item.quantidade),
-                    valorPorUnidade: parseFloat(item.valorPorUnidade),
+                    quantidade: item.quantidade,
+                    valorPorUnidade: item.valorPorUnidade,
                     valorTotal: total,
                 };
             });
 
             const novoAbastecimento = await prisma.abastecimento.create({
                 data: {
-                    veiculo: { connect: { id: veiculoId } },
-                    operador: { connect: { id: operadorId } },
-                    fornecedor: { connect: { id: fornecedorId } },
-                    kmOdometro: kmOdometroFloat,
-                    dataHora: new Date(dataHora),
+                    veiculo: { connect: { id: dados.veiculoId } },
+                    operador: { connect: { id: dados.operadorId } },
+                    fornecedor: { connect: { id: dados.fornecedorId } },
+                    kmOdometro: dados.kmOdometro,
+                    dataHora: dados.dataHora,
                     custoTotal: custoTotalGeral,
-                    placaCartaoUsado,
-                    observacoes: observacoes || null,
-                    justificativa: justificativa || null,
-                    fotoNotaFiscalUrl,
+
+                    // CORREÇÃO AQUI: Usar '?? null' para garantir que undefined vire null
+                    placaCartaoUsado: dados.placaCartaoUsado ?? null,
+                    observacoes: dados.observacoes ?? null,
+                    justificativa: dados.justificativa ?? null,
+                    fotoNotaFiscalUrl: dados.fotoNotaFiscalUrl ?? null,
+
                     itens: { create: itensParaCriar },
                 },
                 include: { itens: { include: { produto: true } } },
@@ -76,7 +77,6 @@ export class AbastecimentoController {
             const { dataInicio, dataFim, veiculoId } = req.query;
             const where: Prisma.AbastecimentoWhereInput = {};
 
-            // Construção segura do filtro de data
             if (dataInicio || dataFim) {
                 const dateFilter: Prisma.DateTimeFilter = {};
 
@@ -90,7 +90,6 @@ export class AbastecimentoController {
                     dateFilter.lt = fim;
                 }
 
-                // Só atribui se houver filtros definidos
                 if (Object.keys(dateFilter).length > 0) {
                     where.dataHora = dateFilter;
                 }

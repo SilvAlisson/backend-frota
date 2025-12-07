@@ -7,12 +7,16 @@ import { cargoSchema, addRequisitoSchema } from '../schemas/cargo.schemas';
 const router = Router();
 router.use(authenticateToken);
 
+// Rotas de Cargo
 router.post('/', validate(cargoSchema), CargoController.create);
 router.get('/', CargoController.list);
+
+// Rotas de DELETE 
 router.delete('/:id', CargoController.delete);
 
-// Rotas para manipular os requisitos dentro do cargo
+// Rotas de Requisitos
 router.post('/:id/requisitos', validate(addRequisitoSchema), CargoController.addRequisito);
+
 router.delete('/requisitos/:requisitoId', CargoController.removeRequisito);
 
 export default router;

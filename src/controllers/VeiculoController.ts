@@ -3,6 +3,8 @@ import { prisma } from '../lib/prisma';
 import { Prisma } from '@prisma/client';
 import { KmService } from '../services/KmService';
 import { AuthenticatedRequest } from '../middleware/auth';
+import { z } from 'zod';
+import { veiculoSchema } from '../schemas/veiculo.schemas';
 
 // Helper function to format date
 const formatDateToInput = (date: Date | null | undefined): string | null => {
@@ -12,46 +14,43 @@ const formatDateToInput = (date: Date | null | undefined): string | null => {
     return dataCorrigida.toISOString().split('T')[0] as string;
 };
 
+// Extração do tipo limpo
+type VeiculoData = z.infer<typeof veiculoSchema>['body'];
+
 export class VeiculoController {
 
-    // Usar AuthenticatedRequest aqui
     static async create(req: AuthenticatedRequest, res: Response) {
-        // 🔒 BLOQUEIO: Só Admin (RH/Contratos futuramente)
         if (req.user?.role !== 'ADMIN') {
             return res.status(403).json({ error: 'Acesso negado. Apenas administradores podem gerir a frota.' });
         }
-        try {
-            const {
-                placa, modelo, ano, tipoCombustivel, capacidadeTanque, tipoVeiculo, vencimentoCiv, vencimentoCipp
-            } = req.body;
 
-            if (!placa || !modelo || !ano) {
-                return res.status(400).json({ error: 'Placa, modelo e ano são obrigatórios' });
-            }
+        try {
+            const dados = req.body as VeiculoData;
 
             const novoVeiculo = await prisma.veiculo.create({
                 data: {
-                    placa: placa.toUpperCase(),
-                    modelo,
-                    ano: parseInt(ano),
-                    tipoCombustivel: tipoCombustivel || 'DIESEL_S10',
-                    capacidadeTanque: capacidadeTanque ? parseFloat(capacidadeTanque) : null,
-                    tipoVeiculo: tipoVeiculo || null,
-                    vencimentoCiv: vencimentoCiv ? new Date(vencimentoCiv) : null,
-                    vencimentoCipp: vencimentoCipp ? new Date(vencimentoCipp) : null,
+                    placa: dados.placa,
+                    modelo: dados.modelo,
+                    ano: dados.ano,
+                    tipoCombustivel: dados.tipoCombustivel,
+
+                    // CORREÇÃO: Nullish Coalescing (?? null) para todos opcionais
+                    capacidadeTanque: dados.capacidadeTanque ?? null,
+                    tipoVeiculo: dados.tipoVeiculo ?? null,
+                    vencimentoCiv: dados.vencimentoCiv ?? null,
+                    vencimentoCipp: dados.vencimentoCipp ?? null,
                 },
             });
             res.status(201).json(novoVeiculo);
         } catch (error) {
             console.error("Erro criar veículo:", error);
             if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
-                return res.status(409).json({ error: `Veículo com placa ${req.body.placa} já existe.` });
+                return res.status(409).json({ error: `Veículo com esta placa já existe.` });
             }
             res.status(500).json({ error: 'Erro ao cadastrar veículo' });
         }
     }
 
-    // Listagem pública para usuários logados
     static async list(req: Request, res: Response) {
         try {
             const veiculos = await prisma.veiculo.findMany({
@@ -59,7 +58,6 @@ export class VeiculoController {
             });
             res.status(200).json(veiculos);
         } catch (error) {
-            console.error("Erro listar veículos:", error);
             res.status(500).json({ error: 'Erro ao buscar veículos' });
         }
     }
@@ -83,41 +81,34 @@ export class VeiculoController {
 
             res.status(200).json(veiculoFormatado);
         } catch (error) {
-            console.error(`Erro buscar veículo ${id}:`, error);
             res.status(500).json({ error: 'Erro ao buscar dados do veículo.' });
         }
     }
 
-    // Usar AuthenticatedRequest aqui
     static async update(req: AuthenticatedRequest, res: Response) {
-        // 🔒 BLOQUEIO
         if (req.user?.role !== 'ADMIN') {
-            return res.status(403).json({ error: 'Acesso negado. Apenas administradores podem gerir a frota.' });
+            return res.status(403).json({ error: 'Acesso negado.' });
         }
 
         const { id } = req.params;
         if (!id) return res.status(400).json({ error: 'ID inválido' });
 
         try {
-            const {
-                placa, modelo, ano, tipoCombustivel, capacidadeTanque, tipoVeiculo, vencimentoCiv, vencimentoCipp
-            } = req.body;
-
-            if (!placa || !modelo || !ano) {
-                return res.status(400).json({ error: 'Placa, modelo e ano são obrigatórios' });
-            }
+            const dados = req.body as VeiculoData;
 
             const updatedVeiculo = await prisma.veiculo.update({
                 where: { id },
                 data: {
-                    placa: placa.toUpperCase(),
-                    modelo,
-                    ano: parseInt(ano),
-                    tipoCombustivel: tipoCombustivel || 'DIESEL_S10',
-                    capacidadeTanque: capacidadeTanque ? parseFloat(capacidadeTanque) : null,
-                    tipoVeiculo: tipoVeiculo || null,
-                    vencimentoCiv: vencimentoCiv ? new Date(vencimentoCiv) : null,
-                    vencimentoCipp: vencimentoCipp ? new Date(vencimentoCipp) : null,
+                    placa: dados.placa,
+                    modelo: dados.modelo,
+                    ano: dados.ano,
+                    tipoCombustivel: dados.tipoCombustivel,
+
+                    // CORREÇÃO: Nullish Coalescing (?? null) aqui também
+                    capacidadeTanque: dados.capacidadeTanque ?? null,
+                    tipoVeiculo: dados.tipoVeiculo ?? null,
+                    vencimentoCiv: dados.vencimentoCiv ?? null,
+                    vencimentoCipp: dados.vencimentoCipp ?? null,
                 },
             });
             res.status(200).json(updatedVeiculo);
@@ -127,11 +118,9 @@ export class VeiculoController {
         }
     }
 
-    // Usar AuthenticatedRequest aqui
     static async delete(req: AuthenticatedRequest, res: Response) {
-        // 🔒 BLOQUEIO
         if (req.user?.role !== 'ADMIN') {
-            return res.status(403).json({ error: 'Acesso negado. Apenas administradores podem gerir a frota.' });
+            return res.status(403).json({ error: 'Acesso negado.' });
         }
 
         const { id } = req.params;
@@ -141,7 +130,6 @@ export class VeiculoController {
             await prisma.veiculo.delete({ where: { id } });
             res.status(200).json({ message: 'Veículo removido com sucesso.' });
         } catch (error) {
-            console.error(`Erro deletar veículo ${id}:`, error);
             if (error instanceof Prisma.PrismaClientKnownRequestError && (error.code === 'P2003' || error.code === 'P2014')) {
                 return res.status(409).json({ error: 'Este veículo não pode ser removido pois possui registos associados.' });
             }

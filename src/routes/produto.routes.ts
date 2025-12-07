@@ -8,10 +8,9 @@ const router = Router();
 router.use(authenticateToken);
 
 router.post('/', validate(produtoSchema), ProdutoController.create);
-router.put('/:id', validate(produtoSchema), ProdutoController.update);
-
 router.get('/', ProdutoController.list);
 router.get('/:id', ProdutoController.getById);
+router.put('/:id', validate(produtoSchema), ProdutoController.update);
 router.delete('/:id', ProdutoController.delete);
 
 export default router;
