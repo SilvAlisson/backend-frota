@@ -6,26 +6,22 @@ import { registerUserSchema } from '../schemas/auth.schemas';
 
 const router = Router();
 
-// Middleware global de autenticação para todas as rotas abaixo
 router.use(authenticateToken);
 
-// Apenas ADMIN pode criar usuários + Validação Zod
+// Criar Usuário (Validação Completa)
 router.post('/register',
     authorize(['ADMIN', 'RH']),
     validate(registerUserSchema),
     UserController.create
 );
 
-// Qualquer autenticado vê a lista (ou restrinja se quiser)
 router.get('/', UserController.list);
-
-// Apenas ADMIN vê detalhes
 router.get('/:id', authorize(['ADMIN', 'RH']), UserController.getById);
 
-// Apenas ADMIN edita
+// Update: Por enquanto sem validação Zod estrita para permitir parciais, 
+// ou você pode criar um 'updateUserSchema' onde todos os campos são .optional()
 router.put('/:id', authorize(['ADMIN', 'RH']), UserController.update);
 
-// Apenas ADMIN deleta
 router.delete('/:id', authorize(['ADMIN', 'RH']), UserController.delete);
 
 export default router;

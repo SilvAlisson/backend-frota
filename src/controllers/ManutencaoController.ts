@@ -2,6 +2,11 @@ import { Request, Response } from 'express';
 import { prisma } from '../lib/prisma';
 import { KmService } from '../services/KmService';
 import { AuthenticatedRequest } from '../middleware/auth';
+import { z } from 'zod';
+import { manutencaoSchema } from '../schemas/operacao.schemas';
+
+// Extraímos o tipo limpo do schema
+type ManutencaoData = z.infer<typeof manutencaoSchema>['body'];
 
 export class ManutencaoController {
 
@@ -11,46 +16,42 @@ export class ManutencaoController {
             return res.status(403).json({ error: 'Acesso negado.' });
         }
 
-        // Verificação explícita do ID do utilizador logado
         const encarregadoId = req.user?.userId;
         if (!encarregadoId) {
             return res.status(401).json({ error: 'Usuário não autenticado.' });
         }
 
         try {
-            const { veiculoId, fornecedorId, kmAtual, data, tipo, itens, observacoes, fotoComprovanteUrl } = req.body;
+            // Zod já validou tipos, datas e campos obrigatórios básicos
+            const dados = req.body as ManutencaoData;
 
-            // Validação de campos obrigatórios (veiculoId e kmAtual saíram da obrigatoriedade global)
-            if (!fornecedorId || !data || !tipo || !itens || itens.length === 0) {
-                return res.status(400).json({ error: 'Dados incompletos. Fornecedor, data, tipo e itens são obrigatórios.' });
-            }
-
-            let kmAtualFloat: number | null = null;
-
-            // Se houver veículo vinculado, a validação de KM é obrigatória
-            if (veiculoId) {
-                if (!kmAtual) {
+            // =========================================================
+            // LÓGICA CONDICIONAL DE KM (Regra de Negócio)
+            // =========================================================
+            if (dados.veiculoId) {
+                if (dados.kmAtual === null || dados.kmAtual === undefined) {
                     return res.status(400).json({ error: 'KM é obrigatório para manutenções vinculadas a um veículo.' });
                 }
 
-                kmAtualFloat = parseFloat(kmAtual);
+                const ultimoKM = await KmService.getUltimoKMRegistrado(dados.veiculoId);
 
-                // Validação KM (Não pode ser menor que o anterior)
-                const ultimoKM = await KmService.getUltimoKMRegistrado(veiculoId);
-                if (kmAtualFloat < ultimoKM) {
-                    return res.status(400).json({ error: `KM informado (${kmAtualFloat}) é menor que o histórico (${ultimoKM}).` });
+                if (dados.kmAtual < ultimoKM) {
+                    return res.status(400).json({
+                        error: `KM informado (${dados.kmAtual}) é menor que o histórico (${ultimoKM}).`
+                    });
                 }
             }
 
             // Cálculo do Custo Total
             let custoTotalGeral = 0;
-            const itensParaCriar = itens.map((item: any) => {
-                const total = parseFloat(item.quantidade) * parseFloat(item.valorPorUnidade);
+
+            const itensParaCriar = dados.itens.map((item) => {
+                const total = item.quantidade * item.valorPorUnidade;
                 custoTotalGeral += total;
                 return {
                     produtoId: item.produtoId,
-                    quantidade: parseFloat(item.quantidade),
-                    valorPorUnidade: parseFloat(item.valorPorUnidade),
+                    quantidade: item.quantidade,
+                    valorPorUnidade: item.valorPorUnidade,
                     valorTotal: total,
                 };
             });
@@ -58,18 +59,22 @@ export class ManutencaoController {
             // Criação da OS
             const novaOS = await prisma.ordemServico.create({
                 data: {
-                    // Conecta ao veículo APENAS se veiculoId foi fornecido
-                    ...(veiculoId ? { veiculo: { connect: { id: veiculoId } } } : {}),
+                    // Conecta ao veículo APENAS se veiculoId foi fornecido (e não é null/vazio)
+                    ...(dados.veiculoId ? { veiculo: { connect: { id: dados.veiculoId } } } : {}),
 
-                    fornecedor: { connect: { id: fornecedorId } },
+                    fornecedor: { connect: { id: dados.fornecedorId } },
                     encarregado: { connect: { id: encarregadoId } },
 
-                    kmAtual: kmAtualFloat, // Pode ser null
-                    data: new Date(data),
-                    tipo,
+                    // CORREÇÃO: Nullish Coalescing (?? null) para satisfazer o Prisma
+                    kmAtual: dados.kmAtual ?? null,
+
+                    data: dados.data,
+                    tipo: dados.tipo,
                     custoTotal: custoTotalGeral,
-                    observacoes: observacoes || null,
-                    fotoComprovanteUrl: fotoComprovanteUrl || null,
+
+                    // CORREÇÃO: Nullish Coalescing (?? null) aqui também
+                    observacoes: dados.observacoes ?? null,
+                    fotoComprovanteUrl: dados.fotoComprovanteUrl ?? null,
 
                     itens: { create: itensParaCriar },
                 },

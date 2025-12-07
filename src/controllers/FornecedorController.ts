@@ -1,7 +1,12 @@
-import { Response } from 'express';
+import { Response, Request } from 'express';
 import { prisma } from '../lib/prisma';
 import { AuthenticatedRequest } from '../middleware/auth';
 import { Prisma } from '@prisma/client';
+import { z } from 'zod';
+import { fornecedorSchema } from '../schemas/fornecedor.schemas';
+
+// Extraímos o tipo limpo diretamente do schema
+type FornecedorData = z.infer<typeof fornecedorSchema>['body'];
 
 export class FornecedorController {
 
@@ -9,22 +14,19 @@ export class FornecedorController {
         if (req.user?.role !== 'ADMIN') return res.status(403).json({ error: 'Acesso negado' });
 
         try {
-            const { nome, cnpj, tipo } = req.body;
-
-            if (!nome) return res.status(400).json({ error: 'Nome é obrigatório' });
+            const { nome, cnpj, tipo } = req.body as FornecedorData;
 
             const fornecedor = await prisma.fornecedor.create({
                 data: {
                     nome,
-                    cnpj: cnpj || null,
-                    // Se não vier tipo, define como OUTROS por segurança
-                    tipo: tipo || 'OUTROS'
+                    // CORREÇÃO: Garante que se for undefined, envia null
+                    cnpj: cnpj ?? null,
+                    tipo
                 }
             });
 
             res.status(201).json(fornecedor);
         } catch (e) {
-            // Tratamento de erro de unicidade (P2002)
             if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
                 return res.status(409).json({ error: 'Fornecedor já existe (Nome ou CNPJ duplicado).' });
             }
@@ -57,14 +59,14 @@ export class FornecedorController {
         if (!id) return res.status(400).json({ error: 'ID inválido' });
 
         try {
-            const { nome, cnpj, tipo } = req.body;
+            const { nome, cnpj, tipo } = req.body as FornecedorData;
 
             const updated = await prisma.fornecedor.update({
                 where: { id },
                 data: {
                     nome,
-                    cnpj: cnpj || null,
-                    tipo: tipo || undefined // Só atualiza se o campo vier preenchido
+                    cnpj: cnpj ?? null,
+                    tipo
                 }
             });
             res.json(updated);
@@ -84,7 +86,6 @@ export class FornecedorController {
             await prisma.fornecedor.delete({ where: { id } });
             res.json({ message: 'Removido' });
         } catch (e) {
-            // Tratamento para erro de chave estrangeira (se estiver em uso)
             if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2003') {
                 return res.status(409).json({ error: 'Não é possível remover: Fornecedor em uso por abastecimentos ou OS.' });
             }

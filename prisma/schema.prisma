@@ -152,7 +152,8 @@ model Produto {
 enum TipoFornecedor {
   POSTO
   OFICINA
-  LAVA_JATO  // <-- Adicionado conforme solicitado
+  LAVA_JATO
+  SEGURADORA
   OUTROS
 }
 

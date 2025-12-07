@@ -1,28 +1,35 @@
 import { AuthenticatedRequest } from '../middleware/auth';
 import { Response } from 'express';
 import { prisma } from '../lib/prisma';
-import { Prisma, TipoProduto } from '@prisma/client';
+import { Prisma } from '@prisma/client';
+import { z } from 'zod';
+import { produtoSchema } from '../schemas/produto.schemas';
+
+// Extraímos a tipagem do schema
+type ProdutoData = z.infer<typeof produtoSchema>['body'];
 
 export class ProdutoController {
 
     static async create(req: AuthenticatedRequest, res: Response) {
         if (req.user?.role !== 'ADMIN') return res.status(403).json({ error: 'Acesso negado.' });
-        try {
-            const { nome, tipo, unidadeMedida } = req.body;
 
-            // Validação do Enum TipoProduto
-            if (!(tipo in TipoProduto)) {
-                return res.status(400).json({ error: `Tipo inválido. Valores: ${Object.values(TipoProduto).join(', ')}` });
-            }
+        try {
+            // req.body já validado, tipado e com defaults aplicados (unidadeMedida = Litro)
+            const { nome, tipo, unidadeMedida } = req.body as ProdutoData;
 
             const produto = await prisma.produto.create({
-                data: { nome, tipo, unidadeMedida: unidadeMedida || 'Litro' }
+                data: {
+                    nome,
+                    tipo,
+                    unidadeMedida
+                }
             });
             res.status(201).json(produto);
         } catch (e) {
             if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
                 return res.status(409).json({ error: 'Produto com este nome já existe.' });
             }
+            console.error("Erro ao criar produto:", e);
             res.status(500).json({ error: 'Erro ao criar produto' });
         }
     }
@@ -51,12 +58,8 @@ export class ProdutoController {
         if (!id) return res.status(400).json({ error: 'ID inválido' });
 
         try {
-            const { nome, tipo, unidadeMedida } = req.body;
-
-            // Validação do Enum se for enviado
-            if (tipo && !(tipo in TipoProduto)) {
-                return res.status(400).json({ error: 'Tipo inválido.' });
-            }
+            // O Zod garante que o Tipo é válido se for enviado
+            const { nome, tipo, unidadeMedida } = req.body as ProdutoData;
 
             const updated = await prisma.produto.update({
                 where: { id },

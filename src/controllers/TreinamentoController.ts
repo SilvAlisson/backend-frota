@@ -1,17 +1,12 @@
-import { Response } from 'express';
+import { Response, Request } from 'express';
 import { prisma } from '../lib/prisma';
 import { AuthenticatedRequest } from '../middleware/auth';
 import { z } from 'zod';
 import { createTreinamentoSchema, importTreinamentosSchema } from '../schemas/treinamentos.schemas';
 
-// Schemas Locais para IDs
-const userIdParamSchema = z.object({
-    userId: z.string().min(1, { error: "ID de usuário inválido" })
-});
-
-const idParamSchema = z.object({
-    id: z.string().min(1, { error: "ID obrigatório" })
-});
+// Extração de Tipos
+type CreateTreinamentoData = z.infer<typeof createTreinamentoSchema>['body'];
+type ImportTreinamentosData = z.infer<typeof importTreinamentosSchema>['body'];
 
 export class TreinamentoController {
 
@@ -21,22 +16,24 @@ export class TreinamentoController {
             return res.status(403).json({ error: 'Acesso negado.' });
         }
 
-        const validation = createTreinamentoSchema.safeParse(req.body);
-        if (!validation.success) {
-            return res.status(400).json({
-                error: 'Dados inválidos',
-                details: validation.error.format()
-            });
-        }
-
-        const { userId, nome, dataRealizacao, descricao, dataVencimento, comprovanteUrl } = validation.data;
-
         try {
+            // Dados já validados pelo middleware
+            const {
+                userId,
+                nome,
+                dataRealizacao,
+                descricao,
+                dataVencimento,
+                comprovanteUrl
+            } = req.body as CreateTreinamentoData;
+
             const treinamento = await prisma.treinamento.create({
                 data: {
                     user: { connect: { id: userId } },
                     nome,
                     dataRealizacao,
+
+                    // CORREÇÃO: Forçar null se for undefined
                     descricao: descricao ?? null,
                     dataVencimento: dataVencimento ?? null,
                     comprovanteUrl: comprovanteUrl ?? null
@@ -55,26 +52,19 @@ export class TreinamentoController {
             return res.status(403).json({ error: 'Acesso negado.' });
         }
 
-        const validation = importTreinamentosSchema.safeParse(req.body);
-        if (!validation.success) {
-            return res.status(400).json({
-                error: 'Dados de importação inválidos',
-                details: validation.error.format()
-            });
-        }
-
-        const { userId, treinamentos } = validation.data;
-
         try {
+            const { userId, treinamentos } = req.body as ImportTreinamentosData;
+
             // createMany é otimizado para inserções em lote
             const resultado = await prisma.treinamento.createMany({
                 data: treinamentos.map(t => ({
                     userId,
                     nome: t.nome,
-                    descricao: t.descricao || null,
                     dataRealizacao: t.dataRealizacao,
-                    dataVencimento: t.dataVencimento || null,
-                    comprovanteUrl: null
+
+                    descricao: t.descricao ?? null,
+                    dataVencimento: t.dataVencimento ?? null,
+                    comprovanteUrl: null // Importação geralmente não tem comprovante
                 }))
             });
 
@@ -90,12 +80,9 @@ export class TreinamentoController {
 
     // Listar treinamentos
     static async listByUser(req: AuthenticatedRequest, res: Response) {
-        const paramsCheck = userIdParamSchema.safeParse(req.params);
-        if (!paramsCheck.success) {
-            return res.status(400).json({ error: "ID de usuário inválido" });
-        }
+        const { userId } = req.params;
 
-        const { userId } = paramsCheck.data;
+        if (!userId) return res.status(400).json({ error: "ID de usuário inválido" });
 
         try {
             const treinamentos = await prisma.treinamento.findMany({
@@ -111,12 +98,8 @@ export class TreinamentoController {
     static async delete(req: AuthenticatedRequest, res: Response) {
         if (!['ADMIN', 'RH'].includes(req.user?.role || '')) return res.sendStatus(403);
 
-        const paramsCheck = idParamSchema.safeParse(req.params);
-        if (!paramsCheck.success) {
-            return res.status(400).json({ error: "ID inválido" });
-        }
-
-        const { id } = paramsCheck.data;
+        const { id } = req.params;
+        if (!id) return res.status(400).json({ error: "ID inválido" });
 
         try {
             await prisma.treinamento.delete({ where: { id } });
