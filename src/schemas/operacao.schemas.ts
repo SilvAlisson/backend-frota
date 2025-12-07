@@ -1,43 +1,44 @@
 import { z } from 'zod';
 
 const itemSchema = z.object({
-    produtoId: z.string().min(1, { error: "ID do produto inválido." }),
+    produtoId: z.string({ error: "Produto obrigatório" }).min(1),
 
-    quantidade: z.coerce.number().positive({ error: "Quantidade deve ser maior que zero." }),
-    valorPorUnidade: z.coerce.number().min(0, { error: "Valor não pode ser negativo." }),
+    quantidade: z.coerce.number({ error: "Qtd inválida" }).positive({ error: "> 0" }),
+    valorPorUnidade: z.coerce.number({ error: "Valor inválido" }).min(0),
 });
 
 export const abastecimentoSchema = z.object({
-    veiculoId: z.string().min(1, { error: "ID do veículo é obrigatório." }),
-    operadorId: z.string().min(1, { error: "ID do operador é obrigatório." }),
-    fornecedorId: z.string().min(1, { error: "ID do fornecedor é obrigatório." }),
+    body: z.object({
+        veiculoId: z.string({ error: "Veículo obrigatório" }).min(1),
+        operadorId: z.string({ error: "Operador obrigatório" }).min(1),
+        fornecedorId: z.string({ error: "Fornecedor obrigatório" }).min(1),
 
-    kmOdometro: z.coerce.number().positive({ error: "KM deve ser um valor positivo." }),
+        kmOdometro: z.coerce.number({ error: "KM inválido" }).positive(),
+        dataHora: z.coerce.date({ error: "Data inválida" }),
 
-    dataHora: z.coerce.date({ error: "Data inválida." }),
+        placaCartaoUsado: z.string().optional().nullable().transform(v => v === "" ? null : v),
+        justificativa: z.string().optional().nullable().transform(v => v === "" ? null : v),
+        observacoes: z.string().optional().nullable().transform(v => v === "" ? null : v),
 
-    placaCartaoUsado: z.string().optional().nullable(),
-    justificativa: z.string().optional().nullable(),
-    observacoes: z.string().optional().nullable(),
+        fotoNotaFiscalUrl: z.string({ error: "URL da foto obrigatória" }).url().optional().nullable(),
 
-    fotoNotaFiscalUrl: z.url({ error: "URL da nota fiscal inválida." }),
-
-    itens: z.array(itemSchema).min(1, { error: "O abastecimento deve ter pelo menos 1 item." }),
+        itens: z.array(itemSchema).min(1, { error: "Mínimo 1 item" }),
+    })
 });
 
 export const manutencaoSchema = z.object({
-    veiculoId: z.string().optional().nullable(),
-    kmAtual: z.coerce.number().optional().nullable(),
+    body: z.object({
+        veiculoId: z.string().optional().nullable(),
+        kmAtual: z.coerce.number().optional().nullable(),
 
-    fornecedorId: z.string().min(1, { error: "Fornecedor obrigatório" }),
-    data: z.coerce.date(),
+        fornecedorId: z.string({ error: "Fornecedor obrigatório" }).min(1),
+        data: z.coerce.date({ error: "Data inválida" }),
 
-    tipo: z.enum(['PREVENTIVA', 'CORRETIVA', 'LAVAGEM'], {
-        error: "Tipo de manutenção inválido"
-    }),
+        tipo: z.enum(['PREVENTIVA', 'CORRETIVA', 'LAVAGEM'], { error: "Tipo inválido" }),
 
-    observacoes: z.string().optional().nullable(),
-    fotoComprovanteUrl: z.string().optional().nullable(),
+        observacoes: z.string().optional().nullable().transform(v => v === "" ? null : v),
+        fotoComprovanteUrl: z.string().optional().nullable().transform(v => v === "" ? null : v),
 
-    itens: z.array(itemSchema).min(1, { error: "A manutenção deve ter pelo menos 1 item." }),
+        itens: z.array(itemSchema).min(1, { error: "Mínimo 1 item" }),
+    })
 });
