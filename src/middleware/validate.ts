@@ -14,17 +14,27 @@ export const validate = (schema: ZodType<any, any>) => async (
             params: req.params,
         });
 
-        if (result.body) req.body = result.body;
-        if (result.query) req.query = result.query;
-        if (result.params) req.params = result.params;
+        if (result.body) {
+            Object.assign(req.body, result.body);
+        }
+
+        if (result.query) {
+
+            Object.assign(req.query, result.query);
+        }
+
+        if (result.params) {
+            Object.assign(req.params, result.params);
+        }
 
         return next();
     } catch (error) {
         if (error instanceof ZodError) {
             const errorMessages = error.issues.map((issue) => {
-                const path = issue.path.join('.').replace('body.', '');
+                const path = issue.path.join('.').replace(/^(body|query|params)\./, '');
                 return { field: path, message: issue.message };
             });
+
 
             return res.status(400).json({
                 error: 'Dados inválidos',
