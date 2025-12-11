@@ -12,7 +12,6 @@ import {
     generateTokenSchema
 } from '../schemas/auth.schemas';
 
-// Extração dos tipos a partir dos Schemas
 type LoginData = z.infer<typeof loginSchema>['body'];
 type LoginTokenData = z.infer<typeof loginWithTokenSchema>['body'];
 type GenerateTokenParams = z.infer<typeof generateTokenSchema>['params'];
@@ -21,7 +20,6 @@ export class AuthController {
 
     static async login(req: Request, res: Response) {
         try {
-            // O Middleware já validou e garantiu que email/pass existem
             const { email, password } = req.body as LoginData;
 
             const user = await prisma.user.findUnique({ where: { email } });
@@ -89,14 +87,13 @@ export class AuthController {
                 return res.status(403).json({ error: 'Acesso negado. Apenas gestores podem gerar QR Code.' });
             }
 
-            // Agora usamos req.params tipado pelo Zod
             const { id } = req.params as GenerateTokenParams;
 
             const userToCheck = await prisma.user.findUnique({ where: { id } });
-            if (!userToCheck) return res.status(404).json({ error: 'Utilizador não encontrado.' });
+            if (!userToCheck) return res.status(404).json({ error: 'Usuário não encontrado.' });
 
-            if (userToCheck.role !== 'OPERADOR') {
-                return res.status(400).json({ error: 'Apenas operadores podem ter token de acesso rápido.' });
+            if (userToCheck.role !== 'OPERADOR' && userToCheck.role !== 'ENCARREGADO') {
+                return res.status(400).json({ error: 'Apenas Operadores e Encarregados podem ter acesso via QR Code.' });
             }
 
             const token = crypto.randomBytes(32).toString('hex');
