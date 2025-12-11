@@ -26,19 +26,20 @@ export class ManutencaoController {
             const dados = req.body as ManutencaoData;
 
             // =========================================================
-            // LÓGICA CONDICIONAL DE KM (Regra de Negócio)
+            // CORREÇÃO: LÓGICA DE KM AGORA É OPCIONAL
             // =========================================================
             if (dados.veiculoId) {
-                if (dados.kmAtual === null || dados.kmAtual === undefined) {
-                    return res.status(400).json({ error: 'KM é obrigatório para manutenções vinculadas a um veículo.' });
-                }
+                // Removemos o bloqueio de "KM obrigatório".
+                // Agora verificamos a consistência APENAS se o KM for informado.
+                if (dados.kmAtual !== null && dados.kmAtual !== undefined) {
+                    const ultimoKM = await KmService.getUltimoKMRegistrado(dados.veiculoId);
 
-                const ultimoKM = await KmService.getUltimoKMRegistrado(dados.veiculoId);
-
-                if (dados.kmAtual < ultimoKM) {
-                    return res.status(400).json({
-                        error: `KM informado (${dados.kmAtual}) é menor que o histórico (${ultimoKM}).`
-                    });
+                    // Validação de consistência (não pode reduzir a quilometragem)
+                    if (dados.kmAtual < ultimoKM) {
+                        return res.status(400).json({
+                            error: `KM informado (${dados.kmAtual}) é menor que o histórico (${ultimoKM}).`
+                        });
+                    }
                 }
             }
 
@@ -65,14 +66,13 @@ export class ManutencaoController {
                     fornecedor: { connect: { id: dados.fornecedorId } },
                     encarregado: { connect: { id: encarregadoId } },
 
-                    // CORREÇÃO: Nullish Coalescing (?? null) para satisfazer o Prisma
+                    // Nullish Coalescing (?? null) para satisfazer o Prisma
                     kmAtual: dados.kmAtual ?? null,
 
                     data: dados.data,
                     tipo: dados.tipo,
                     custoTotal: custoTotalGeral,
 
-                    // CORREÇÃO: Nullish Coalescing (?? null) aqui também
                     observacoes: dados.observacoes ?? null,
                     fotoComprovanteUrl: dados.fotoComprovanteUrl ?? null,
 

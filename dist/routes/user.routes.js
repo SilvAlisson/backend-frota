@@ -6,17 +6,14 @@ const auth_1 = require("../middleware/auth");
 const validate_1 = require("../middleware/validate");
 const auth_schemas_1 = require("../schemas/auth.schemas");
 const router = (0, express_1.Router)();
-// Middleware global de autenticação para todas as rotas abaixo
 router.use(auth_1.authenticateToken);
-// Apenas ADMIN pode criar usuários + Validação Zod
+// Criar Usuário (Validação Completa)
 router.post('/register', (0, auth_1.authorize)(['ADMIN', 'RH']), (0, validate_1.validate)(auth_schemas_1.registerUserSchema), UserController_1.UserController.create);
-// Qualquer autenticado vê a lista (ou restrinja se quiser)
 router.get('/', UserController_1.UserController.list);
-// Apenas ADMIN vê detalhes
 router.get('/:id', (0, auth_1.authorize)(['ADMIN', 'RH']), UserController_1.UserController.getById);
-// Apenas ADMIN edita
+// Update: Por enquanto sem validação Zod estrita para permitir parciais, 
+// ou você pode criar um 'updateUserSchema' onde todos os campos são .optional()
 router.put('/:id', (0, auth_1.authorize)(['ADMIN', 'RH']), UserController_1.UserController.update);
-// Apenas ADMIN deleta
 router.delete('/:id', (0, auth_1.authorize)(['ADMIN', 'RH']), UserController_1.UserController.delete);
 exports.default = router;
 //# sourceMappingURL=user.routes.js.map

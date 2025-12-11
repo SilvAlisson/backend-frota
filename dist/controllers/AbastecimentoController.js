@@ -9,42 +9,39 @@ class AbastecimentoController {
             return res.status(403).json({ error: 'Acesso negado.' });
         }
         try {
-            const { veiculoId, operadorId, fornecedorId, kmOdometro, dataHora, placaCartaoUsado, itens, observacoes, justificativa, fotoNotaFiscalUrl } = req.body;
-            // Validação de campos obrigatórios
-            if (!veiculoId || !operadorId || !fornecedorId || !kmOdometro || !dataHora || !itens || !fotoNotaFiscalUrl) {
-                return res.status(400).json({ error: 'Campos obrigatórios em falta.' });
-            }
-            const kmOdometroFloat = parseFloat(kmOdometro);
-            // Validação Centralizada de KM
-            const ultimoKM = await KmService_1.KmService.getUltimoKMRegistrado(veiculoId);
-            if (kmOdometroFloat < ultimoKM) {
+            // O Zod já garantiu que os campos existem e converteu números/datas.
+            const dados = req.body;
+            // Validação de Regra de Negócio (KM)
+            const ultimoKM = await KmService_1.KmService.getUltimoKMRegistrado(dados.veiculoId);
+            if (dados.kmOdometro < ultimoKM) {
                 return res.status(400).json({
-                    error: `KM informado (${kmOdometroFloat}) é menor que o histórico (${ultimoKM}).`
+                    error: `KM informado (${dados.kmOdometro}) é menor que o histórico (${ultimoKM}).`
                 });
             }
             let custoTotalGeral = 0;
-            const itensParaCriar = itens.map((item) => {
-                const total = parseFloat(item.quantidade) * parseFloat(item.valorPorUnidade);
+            const itensParaCriar = dados.itens.map((item) => {
+                const total = item.quantidade * item.valorPorUnidade;
                 custoTotalGeral += total;
                 return {
                     produtoId: item.produtoId,
-                    quantidade: parseFloat(item.quantidade),
-                    valorPorUnidade: parseFloat(item.valorPorUnidade),
+                    quantidade: item.quantidade,
+                    valorPorUnidade: item.valorPorUnidade,
                     valorTotal: total,
                 };
             });
             const novoAbastecimento = await prisma_1.prisma.abastecimento.create({
                 data: {
-                    veiculo: { connect: { id: veiculoId } },
-                    operador: { connect: { id: operadorId } },
-                    fornecedor: { connect: { id: fornecedorId } },
-                    kmOdometro: kmOdometroFloat,
-                    dataHora: new Date(dataHora),
+                    veiculo: { connect: { id: dados.veiculoId } },
+                    operador: { connect: { id: dados.operadorId } },
+                    fornecedor: { connect: { id: dados.fornecedorId } },
+                    kmOdometro: dados.kmOdometro,
+                    dataHora: dados.dataHora,
                     custoTotal: custoTotalGeral,
-                    placaCartaoUsado,
-                    observacoes: observacoes || null,
-                    justificativa: justificativa || null,
-                    fotoNotaFiscalUrl,
+                    // CORREÇÃO AQUI: Usar '?? null' para garantir que undefined vire null
+                    placaCartaoUsado: dados.placaCartaoUsado ?? null,
+                    observacoes: dados.observacoes ?? null,
+                    justificativa: dados.justificativa ?? null,
+                    fotoNotaFiscalUrl: dados.fotoNotaFiscalUrl ?? null,
                     itens: { create: itensParaCriar },
                 },
                 include: { itens: { include: { produto: true } } },
@@ -63,7 +60,6 @@ class AbastecimentoController {
         try {
             const { dataInicio, dataFim, veiculoId } = req.query;
             const where = {};
-            // Construção segura do filtro de data
             if (dataInicio || dataFim) {
                 const dateFilter = {};
                 if (dataInicio && typeof dataInicio === 'string') {
@@ -74,7 +70,6 @@ class AbastecimentoController {
                     fim.setDate(fim.getDate() + 1);
                     dateFilter.lt = fim;
                 }
-                // Só atribui se houver filtros definidos
                 if (Object.keys(dateFilter).length > 0) {
                     where.dataHora = dateFilter;
                 }

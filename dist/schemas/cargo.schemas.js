@@ -3,14 +3,21 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.addRequisitoSchema = exports.cargoSchema = void 0;
 const zod_1 = require("zod");
 const requisitoSchema = zod_1.z.object({
-    nome: zod_1.z.string().min(2, { error: "Nome do treinamento é obrigatório" }),
-    validadeMeses: zod_1.z.number().min(0, { error: "Validade inválida" }),
-    diasAntecedenciaAlerta: zod_1.z.number().min(1).default(30)
+    nome: zod_1.z.string({ error: "Nome do requisito obrigatório" }).min(2),
+    validadeMeses: zod_1.z.coerce.number({ error: "Validade inválida" }).min(0),
+    diasAntecedenciaAlerta: zod_1.z.coerce.number().min(1).default(30)
 });
 exports.cargoSchema = zod_1.z.object({
-    nome: zod_1.z.string().min(3, { error: "Nome do cargo deve ter no mínimo 3 caracteres" }),
-    descricao: zod_1.z.string().optional().nullable(),
-    requisitos: zod_1.z.array(requisitoSchema).optional()
+    body: zod_1.z.object({
+        nome: zod_1.z.string({ error: "Nome obrigatório" }).min(3, { error: "Mínimo 3 caracteres" }),
+        descricao: zod_1.z.string().optional().nullable().transform(v => v === "" ? null : v),
+        requisitos: zod_1.z.array(requisitoSchema).optional()
+    })
 });
-exports.addRequisitoSchema = requisitoSchema;
+exports.addRequisitoSchema = zod_1.z.object({
+    params: zod_1.z.object({
+        id: zod_1.z.string({ error: "ID do cargo inválido" })
+    }),
+    body: requisitoSchema
+});
 //# sourceMappingURL=cargo.schemas.js.map

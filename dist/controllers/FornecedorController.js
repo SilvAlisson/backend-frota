@@ -8,17 +8,22 @@ class FornecedorController {
         if (req.user?.role !== 'ADMIN')
             return res.status(403).json({ error: 'Acesso negado' });
         try {
-            const { nome, cnpj } = req.body;
-            if (!nome)
-                return res.status(400).json({ error: 'Nome é obrigatório' });
-            const fornecedor = await prisma_1.prisma.fornecedor.create({ data: { nome, cnpj } });
+            const { nome, cnpj, tipo } = req.body;
+            const fornecedor = await prisma_1.prisma.fornecedor.create({
+                data: {
+                    nome,
+                    // CORREÇÃO: Garante que se for undefined, envia null
+                    cnpj: cnpj ?? null,
+                    tipo
+                }
+            });
             res.status(201).json(fornecedor);
         }
         catch (e) {
-            // Tratamento de erro de unicidade (P2002)
             if (e instanceof client_1.Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
-                return res.status(409).json({ error: 'Fornecedor já existe.' });
+                return res.status(409).json({ error: 'Fornecedor já existe (Nome ou CNPJ duplicado).' });
             }
+            console.error("Erro ao criar fornecedor:", e);
             res.status(500).json({ error: 'Erro ao criar fornecedor' });
         }
     }
@@ -50,16 +55,19 @@ class FornecedorController {
         if (!id)
             return res.status(400).json({ error: 'ID inválido' });
         try {
+            const { nome, cnpj, tipo } = req.body;
             const updated = await prisma_1.prisma.fornecedor.update({
                 where: { id },
                 data: {
-                    nome: req.body.nome,
-                    cnpj: req.body.cnpj || null
+                    nome,
+                    cnpj: cnpj ?? null,
+                    tipo
                 }
             });
             res.json(updated);
         }
         catch (e) {
+            console.error("Erro ao atualizar fornecedor:", e);
             res.status(500).json({ error: 'Erro ao atualizar' });
         }
     }
@@ -74,9 +82,8 @@ class FornecedorController {
             res.json({ message: 'Removido' });
         }
         catch (e) {
-            // Tratamento para erro de chave estrangeira (se estiver em uso)
             if (e instanceof client_1.Prisma.PrismaClientKnownRequestError && e.code === 'P2003') {
-                return res.status(409).json({ error: 'Não é possível remover: Fornecedor em uso.' });
+                return res.status(409).json({ error: 'Não é possível remover: Fornecedor em uso por abastecimentos ou OS.' });
             }
             res.status(500).json({ error: 'Erro ao remover.' });
         }

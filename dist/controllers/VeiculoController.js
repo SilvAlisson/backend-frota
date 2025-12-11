@@ -13,27 +13,23 @@ const formatDateToInput = (date) => {
     return dataCorrigida.toISOString().split('T')[0];
 };
 class VeiculoController {
-    // Usar AuthenticatedRequest aqui
     static async create(req, res) {
-        // 🔒 BLOQUEIO: Só Admin (RH/Contratos futuramente)
         if (req.user?.role !== 'ADMIN') {
             return res.status(403).json({ error: 'Acesso negado. Apenas administradores podem gerir a frota.' });
         }
         try {
-            const { placa, modelo, ano, tipoCombustivel, capacidadeTanque, tipoVeiculo, vencimentoCiv, vencimentoCipp } = req.body;
-            if (!placa || !modelo || !ano) {
-                return res.status(400).json({ error: 'Placa, modelo e ano são obrigatórios' });
-            }
+            const dados = req.body;
             const novoVeiculo = await prisma_1.prisma.veiculo.create({
                 data: {
-                    placa: placa.toUpperCase(),
-                    modelo,
-                    ano: parseInt(ano),
-                    tipoCombustivel: tipoCombustivel || 'DIESEL_S10',
-                    capacidadeTanque: capacidadeTanque ? parseFloat(capacidadeTanque) : null,
-                    tipoVeiculo: tipoVeiculo || null,
-                    vencimentoCiv: vencimentoCiv ? new Date(vencimentoCiv) : null,
-                    vencimentoCipp: vencimentoCipp ? new Date(vencimentoCipp) : null,
+                    placa: dados.placa,
+                    modelo: dados.modelo,
+                    ano: dados.ano,
+                    tipoCombustivel: dados.tipoCombustivel,
+                    // CORREÇÃO: Nullish Coalescing (?? null) para todos opcionais
+                    capacidadeTanque: dados.capacidadeTanque ?? null,
+                    tipoVeiculo: dados.tipoVeiculo ?? null,
+                    vencimentoCiv: dados.vencimentoCiv ?? null,
+                    vencimentoCipp: dados.vencimentoCipp ?? null,
                 },
             });
             res.status(201).json(novoVeiculo);
@@ -41,12 +37,11 @@ class VeiculoController {
         catch (error) {
             console.error("Erro criar veículo:", error);
             if (error instanceof client_1.Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
-                return res.status(409).json({ error: `Veículo com placa ${req.body.placa} já existe.` });
+                return res.status(409).json({ error: `Veículo com esta placa já existe.` });
             }
             res.status(500).json({ error: 'Erro ao cadastrar veículo' });
         }
     }
-    // Listagem pública para usuários logados
     static async list(req, res) {
         try {
             const veiculos = await prisma_1.prisma.veiculo.findMany({
@@ -55,7 +50,6 @@ class VeiculoController {
             res.status(200).json(veiculos);
         }
         catch (error) {
-            console.error("Erro listar veículos:", error);
             res.status(500).json({ error: 'Erro ao buscar veículos' });
         }
     }
@@ -77,35 +71,30 @@ class VeiculoController {
             res.status(200).json(veiculoFormatado);
         }
         catch (error) {
-            console.error(`Erro buscar veículo ${id}:`, error);
             res.status(500).json({ error: 'Erro ao buscar dados do veículo.' });
         }
     }
-    // Usar AuthenticatedRequest aqui
     static async update(req, res) {
-        // 🔒 BLOQUEIO
         if (req.user?.role !== 'ADMIN') {
-            return res.status(403).json({ error: 'Acesso negado. Apenas administradores podem gerir a frota.' });
+            return res.status(403).json({ error: 'Acesso negado.' });
         }
         const { id } = req.params;
         if (!id)
             return res.status(400).json({ error: 'ID inválido' });
         try {
-            const { placa, modelo, ano, tipoCombustivel, capacidadeTanque, tipoVeiculo, vencimentoCiv, vencimentoCipp } = req.body;
-            if (!placa || !modelo || !ano) {
-                return res.status(400).json({ error: 'Placa, modelo e ano são obrigatórios' });
-            }
+            const dados = req.body;
             const updatedVeiculo = await prisma_1.prisma.veiculo.update({
                 where: { id },
                 data: {
-                    placa: placa.toUpperCase(),
-                    modelo,
-                    ano: parseInt(ano),
-                    tipoCombustivel: tipoCombustivel || 'DIESEL_S10',
-                    capacidadeTanque: capacidadeTanque ? parseFloat(capacidadeTanque) : null,
-                    tipoVeiculo: tipoVeiculo || null,
-                    vencimentoCiv: vencimentoCiv ? new Date(vencimentoCiv) : null,
-                    vencimentoCipp: vencimentoCipp ? new Date(vencimentoCipp) : null,
+                    placa: dados.placa,
+                    modelo: dados.modelo,
+                    ano: dados.ano,
+                    tipoCombustivel: dados.tipoCombustivel,
+                    // CORREÇÃO: Nullish Coalescing (?? null) aqui também
+                    capacidadeTanque: dados.capacidadeTanque ?? null,
+                    tipoVeiculo: dados.tipoVeiculo ?? null,
+                    vencimentoCiv: dados.vencimentoCiv ?? null,
+                    vencimentoCipp: dados.vencimentoCipp ?? null,
                 },
             });
             res.status(200).json(updatedVeiculo);
@@ -115,11 +104,9 @@ class VeiculoController {
             res.status(500).json({ error: 'Erro ao atualizar veículo.' });
         }
     }
-    // Usar AuthenticatedRequest aqui
     static async delete(req, res) {
-        // 🔒 BLOQUEIO
         if (req.user?.role !== 'ADMIN') {
-            return res.status(403).json({ error: 'Acesso negado. Apenas administradores podem gerir a frota.' });
+            return res.status(403).json({ error: 'Acesso negado.' });
         }
         const { id } = req.params;
         if (!id)
@@ -129,7 +116,6 @@ class VeiculoController {
             res.status(200).json({ message: 'Veículo removido com sucesso.' });
         }
         catch (error) {
-            console.error(`Erro deletar veículo ${id}:`, error);
             if (error instanceof client_1.Prisma.PrismaClientKnownRequestError && (error.code === 'P2003' || error.code === 'P2014')) {
                 return res.status(409).json({ error: 'Este veículo não pode ser removido pois possui registos associados.' });
             }

@@ -9,19 +9,21 @@ class PlanoManutencaoController {
             return res.status(403).json({ error: 'Acesso negado.' });
         }
         try {
+            // req.body já validado e tipado pelo middleware
             const { veiculoId, descricao, tipoIntervalo, valorIntervalo } = req.body;
-            if (!veiculoId || !descricao || !tipoIntervalo || !valorIntervalo) {
-                return res.status(400).json({ error: 'Todos os campos são obrigatórios.' });
-            }
+            // Busca KM atual para cálculo
             const kmAtual = await KmService_1.KmService.getUltimoKMRegistrado(veiculoId);
             let kmProximaManutencao = null;
             let dataProximaManutencao = null;
+            // Lógica de Negócio: Calcular vencimento
             if (tipoIntervalo === 'KM') {
-                kmProximaManutencao = kmAtual + parseFloat(valorIntervalo);
+                // valorIntervalo já é number aqui
+                kmProximaManutencao = kmAtual + valorIntervalo;
             }
             else if (tipoIntervalo === 'TEMPO') {
                 const data = new Date();
-                data.setMonth(data.getMonth() + parseInt(valorIntervalo));
+                // valorIntervalo já é number aqui
+                data.setMonth(data.getMonth() + valorIntervalo);
                 dataProximaManutencao = data;
             }
             const plano = await prisma_1.prisma.planoManutencao.create({
@@ -29,7 +31,7 @@ class PlanoManutencaoController {
                     veiculoId,
                     descricao,
                     tipoIntervalo,
-                    valorIntervalo: parseFloat(valorIntervalo),
+                    valorIntervalo, // Salva o número direto
                     kmProximaManutencao,
                     dataProximaManutencao,
                 },

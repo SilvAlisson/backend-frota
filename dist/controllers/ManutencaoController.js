@@ -9,55 +9,55 @@ class ManutencaoController {
         if (req.user?.role !== 'ADMIN' && req.user?.role !== 'ENCARREGADO') {
             return res.status(403).json({ error: 'Acesso negado.' });
         }
-        // Verificação explícita do ID do utilizador logado
         const encarregadoId = req.user?.userId;
         if (!encarregadoId) {
             return res.status(401).json({ error: 'Usuário não autenticado.' });
         }
         try {
-            const { veiculoId, fornecedorId, kmAtual, data, tipo, itens, observacoes, fotoComprovanteUrl } = req.body;
-            // Validação de campos obrigatórios (veiculoId e kmAtual saíram da obrigatoriedade global)
-            if (!fornecedorId || !data || !tipo || !itens || itens.length === 0) {
-                return res.status(400).json({ error: 'Dados incompletos. Fornecedor, data, tipo e itens são obrigatórios.' });
-            }
-            let kmAtualFloat = null;
-            // Se houver veículo vinculado, a validação de KM é obrigatória
-            if (veiculoId) {
-                if (!kmAtual) {
-                    return res.status(400).json({ error: 'KM é obrigatório para manutenções vinculadas a um veículo.' });
-                }
-                kmAtualFloat = parseFloat(kmAtual);
-                // Validação KM (Não pode ser menor que o anterior)
-                const ultimoKM = await KmService_1.KmService.getUltimoKMRegistrado(veiculoId);
-                if (kmAtualFloat < ultimoKM) {
-                    return res.status(400).json({ error: `KM informado (${kmAtualFloat}) é menor que o histórico (${ultimoKM}).` });
+            // Zod já validou tipos, datas e campos obrigatórios básicos
+            const dados = req.body;
+            // =========================================================
+            // CORREÇÃO: LÓGICA DE KM AGORA É OPCIONAL
+            // =========================================================
+            if (dados.veiculoId) {
+                // Removemos o bloqueio de "KM obrigatório".
+                // Agora verificamos a consistência APENAS se o KM for informado.
+                if (dados.kmAtual !== null && dados.kmAtual !== undefined) {
+                    const ultimoKM = await KmService_1.KmService.getUltimoKMRegistrado(dados.veiculoId);
+                    // Validação de consistência (não pode reduzir a quilometragem)
+                    if (dados.kmAtual < ultimoKM) {
+                        return res.status(400).json({
+                            error: `KM informado (${dados.kmAtual}) é menor que o histórico (${ultimoKM}).`
+                        });
+                    }
                 }
             }
             // Cálculo do Custo Total
             let custoTotalGeral = 0;
-            const itensParaCriar = itens.map((item) => {
-                const total = parseFloat(item.quantidade) * parseFloat(item.valorPorUnidade);
+            const itensParaCriar = dados.itens.map((item) => {
+                const total = item.quantidade * item.valorPorUnidade;
                 custoTotalGeral += total;
                 return {
                     produtoId: item.produtoId,
-                    quantidade: parseFloat(item.quantidade),
-                    valorPorUnidade: parseFloat(item.valorPorUnidade),
+                    quantidade: item.quantidade,
+                    valorPorUnidade: item.valorPorUnidade,
                     valorTotal: total,
                 };
             });
             // Criação da OS
             const novaOS = await prisma_1.prisma.ordemServico.create({
                 data: {
-                    // Conecta ao veículo APENAS se veiculoId foi fornecido
-                    ...(veiculoId ? { veiculo: { connect: { id: veiculoId } } } : {}),
-                    fornecedor: { connect: { id: fornecedorId } },
+                    // Conecta ao veículo APENAS se veiculoId foi fornecido (e não é null/vazio)
+                    ...(dados.veiculoId ? { veiculo: { connect: { id: dados.veiculoId } } } : {}),
+                    fornecedor: { connect: { id: dados.fornecedorId } },
                     encarregado: { connect: { id: encarregadoId } },
-                    kmAtual: kmAtualFloat, // Pode ser null
-                    data: new Date(data),
-                    tipo,
+                    // Nullish Coalescing (?? null) para satisfazer o Prisma
+                    kmAtual: dados.kmAtual ?? null,
+                    data: dados.data,
+                    tipo: dados.tipo,
                     custoTotal: custoTotalGeral,
-                    observacoes: observacoes || null,
-                    fotoComprovanteUrl: fotoComprovanteUrl || null,
+                    observacoes: dados.observacoes ?? null,
+                    fotoComprovanteUrl: dados.fotoComprovanteUrl ?? null,
                     itens: { create: itensParaCriar },
                 },
                 include: { itens: { include: { produto: true } } },

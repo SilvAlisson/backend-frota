@@ -8,13 +8,14 @@ class ProdutoController {
         if (req.user?.role !== 'ADMIN')
             return res.status(403).json({ error: 'Acesso negado.' });
         try {
+            // req.body já validado, tipado e com defaults aplicados (unidadeMedida = Litro)
             const { nome, tipo, unidadeMedida } = req.body;
-            // Validação do Enum TipoProduto
-            if (!(tipo in client_1.TipoProduto)) {
-                return res.status(400).json({ error: `Tipo inválido. Valores: ${Object.values(client_1.TipoProduto).join(', ')}` });
-            }
             const produto = await prisma_1.prisma.produto.create({
-                data: { nome, tipo, unidadeMedida: unidadeMedida || 'Litro' }
+                data: {
+                    nome,
+                    tipo,
+                    unidadeMedida
+                }
             });
             res.status(201).json(produto);
         }
@@ -22,6 +23,7 @@ class ProdutoController {
             if (e instanceof client_1.Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
                 return res.status(409).json({ error: 'Produto com este nome já existe.' });
             }
+            console.error("Erro ao criar produto:", e);
             res.status(500).json({ error: 'Erro ao criar produto' });
         }
     }
@@ -53,11 +55,8 @@ class ProdutoController {
         if (!id)
             return res.status(400).json({ error: 'ID inválido' });
         try {
+            // O Zod garante que o Tipo é válido se for enviado
             const { nome, tipo, unidadeMedida } = req.body;
-            // Validação do Enum se for enviado
-            if (tipo && !(tipo in client_1.TipoProduto)) {
-                return res.status(400).json({ error: 'Tipo inválido.' });
-            }
             const updated = await prisma_1.prisma.produto.update({
                 where: { id },
                 data: { nome, tipo, unidadeMedida }

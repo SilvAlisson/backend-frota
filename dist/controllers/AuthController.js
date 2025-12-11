@@ -12,19 +12,23 @@ const env_1 = require("../config/env");
 class AuthController {
     static async login(req, res) {
         try {
+            // O Middleware já validou e garantiu que email/pass existem
             const { email, password } = req.body;
-            if (!email || !password)
-                return res.status(400).json({ error: 'Credenciais obrigatórias.' });
             const user = await prisma_1.prisma.user.findUnique({ where: { email } });
             if (!user || !await bcrypt_1.default.compare(password, user.password)) {
                 return res.status(401).json({ error: 'Credenciais inválidas' });
             }
-            // CORREÇÃO: Token sem prazo de expiração (sessão infinita)
-            const token = jsonwebtoken_1.default.sign({ userId: user.id, role: user.role }, env_1.env.TOKEN_SECRET);
+            const token = jsonwebtoken_1.default.sign({ userId: user.id, role: user.role }, env_1.env.TOKEN_SECRET, { expiresIn: '30d' });
             res.status(200).json({
                 message: 'Login bem-sucedido',
                 token,
-                user: { id: user.id, nome: user.nome, email: user.email, role: user.role },
+                user: {
+                    id: user.id,
+                    nome: user.nome,
+                    email: user.email,
+                    role: user.role,
+                    fotoUrl: user.fotoUrl
+                },
             });
         }
         catch (error) {
@@ -35,17 +39,20 @@ class AuthController {
     static async loginWithToken(req, res) {
         try {
             const { loginToken } = req.body;
-            if (!loginToken)
-                return res.status(400).json({ error: 'Token obrigatório.' });
             const user = await prisma_1.prisma.user.findFirst({ where: { loginToken } });
             if (!user)
                 return res.status(401).json({ error: 'Token inválido.' });
-            // CORREÇÃO: Token sem prazo de expiração (sessão infinita)
-            const token = jsonwebtoken_1.default.sign({ userId: user.id, role: user.role }, env_1.env.TOKEN_SECRET);
+            const token = jsonwebtoken_1.default.sign({ userId: user.id, role: user.role }, env_1.env.TOKEN_SECRET, { expiresIn: '30d' });
             res.status(200).json({
                 message: 'Login por token OK',
                 token,
-                user: { id: user.id, nome: user.nome, email: user.email, role: user.role },
+                user: {
+                    id: user.id,
+                    nome: user.nome,
+                    email: user.email,
+                    role: user.role,
+                    fotoUrl: user.fotoUrl
+                },
             });
         }
         catch (error) {
@@ -55,13 +62,11 @@ class AuthController {
     }
     static async generateToken(req, res) {
         try {
-            // 🔒 VALIDAÇÃO DE SEGURANÇA (ADMIN ou ENCARREGADO)
             if (req.user?.role !== 'ADMIN' && req.user?.role !== 'ENCARREGADO') {
                 return res.status(403).json({ error: 'Acesso negado. Apenas gestores podem gerar QR Code.' });
             }
+            // Agora usamos req.params tipado pelo Zod
             const { id } = req.params;
-            if (!id)
-                return res.status(400).json({ error: 'ID necessário.' });
             const userToCheck = await prisma_1.prisma.user.findUnique({ where: { id } });
             if (!userToCheck)
                 return res.status(404).json({ error: 'Utilizador não encontrado.' });
