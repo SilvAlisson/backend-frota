@@ -27,8 +27,16 @@ export class PlanoManutencaoController {
 
             // Lógica de Negócio: Calcular vencimento
             if (tipoIntervalo === 'KM') {
-                // valorIntervalo já é number aqui
-                kmProximaManutencao = kmAtual + valorIntervalo;
+                if (valorIntervalo > 0) {
+                    // CORREÇÃO: Lógica de Múltiplos (Ex: 20, 40, 60...)
+                    // Se kmAtual = 111.405 e intervalo = 20.000:
+                    // 111.405 / 20.000 = 5.57 -> Floor = 5
+                    // (5 + 1) * 20.000 = 120.000 KM (Próxima revisão correta)
+                    const multiplicador = Math.floor(kmAtual / valorIntervalo) + 1;
+                    kmProximaManutencao = multiplicador * valorIntervalo;
+                } else {
+                    kmProximaManutencao = kmAtual; // Segurança contra divisão por zero
+                }
             } else if (tipoIntervalo === 'TEMPO') {
                 const data = new Date();
                 // valorIntervalo já é number aqui
@@ -41,7 +49,7 @@ export class PlanoManutencaoController {
                     veiculoId,
                     descricao,
                     tipoIntervalo,
-                    valorIntervalo, // Salva o número direto
+                    valorIntervalo,
                     kmProximaManutencao,
                     dataProximaManutencao,
                 },
