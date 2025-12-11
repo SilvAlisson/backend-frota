@@ -17,16 +17,12 @@ export class AbastecimentoController {
         }
 
         try {
-            // O Zod já garantiu que os campos existem e converteu números/datas.
             const dados = req.body as AbastecimentoData;
 
-            // Validação de Regra de Negócio (KM)
             const ultimoKM = await KmService.getUltimoKMRegistrado(dados.veiculoId);
 
             if (dados.kmOdometro < ultimoKM) {
-                return res.status(400).json({
-                    error: `KM informado (${dados.kmOdometro}) é menor que o histórico (${ultimoKM}).`
-                });
+                console.warn(`[Abastecimento] KM informado (${dados.kmOdometro}) é menor que o atual (${ultimoKM}). Permitido (lançamento retroativo).`);
             }
 
             let custoTotalGeral = 0;
@@ -51,7 +47,7 @@ export class AbastecimentoController {
                     dataHora: dados.dataHora,
                     custoTotal: custoTotalGeral,
 
-                    // CORREÇÃO AQUI: Usar '?? null' para garantir que undefined vire null
+                    // Usar '?? null' para garantir que undefined vire null
                     placaCartaoUsado: dados.placaCartaoUsado ?? null,
                     observacoes: dados.observacoes ?? null,
                     justificativa: dados.justificativa ?? null,
@@ -61,6 +57,10 @@ export class AbastecimentoController {
                 },
                 include: { itens: { include: { produto: true } } },
             });
+
+            if (dados.kmOdometro > ultimoKM) {
+
+            }
 
             res.status(201).json(novoAbastecimento);
         } catch (error) {

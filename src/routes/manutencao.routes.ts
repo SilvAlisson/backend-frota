@@ -8,6 +8,7 @@ const router = Router();
 router.use(authenticateToken);
 
 router.post('/', validate(manutencaoSchema), ManutencaoController.create);
+router.put('/:id', validate(manutencaoSchema), ManutencaoController.update); // <--- CORREÇÃO AQUI
 router.get('/recentes', ManutencaoController.listRecent);
 router.delete('/:id', ManutencaoController.delete);
 

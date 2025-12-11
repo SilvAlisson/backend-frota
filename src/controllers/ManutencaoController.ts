@@ -22,19 +22,12 @@ export class ManutencaoController {
         }
 
         try {
-            // Zod já validou tipos, datas e campos obrigatórios básicos
             const dados = req.body as ManutencaoData;
 
-            // =========================================================
-            // CORREÇÃO: LÓGICA DE KM AGORA É OPCIONAL
-            // =========================================================
+            // Validação de KM (Opcional)
             if (dados.veiculoId) {
-                // Removemos o bloqueio de "KM obrigatório".
-                // Agora verificamos a consistência APENAS se o KM for informado.
                 if (dados.kmAtual !== null && dados.kmAtual !== undefined) {
                     const ultimoKM = await KmService.getUltimoKMRegistrado(dados.veiculoId);
-
-                    // Validação de consistência (não pode reduzir a quilometragem)
                     if (dados.kmAtual < ultimoKM) {
                         return res.status(400).json({
                             error: `KM informado (${dados.kmAtual}) é menor que o histórico (${ultimoKM}).`
@@ -43,9 +36,7 @@ export class ManutencaoController {
                 }
             }
 
-            // Cálculo do Custo Total
             let custoTotalGeral = 0;
-
             const itensParaCriar = dados.itens.map((item) => {
                 const total = item.quantidade * item.valorPorUnidade;
                 custoTotalGeral += total;
@@ -57,22 +48,18 @@ export class ManutencaoController {
                 };
             });
 
-            // Criação da OS
             const novaOS = await prisma.ordemServico.create({
                 data: {
-                    // Conecta ao veículo APENAS se veiculoId foi fornecido (e não é null/vazio)
+                    // Spread condicional para conectar veículo apenas se existir
                     ...(dados.veiculoId ? { veiculo: { connect: { id: dados.veiculoId } } } : {}),
 
                     fornecedor: { connect: { id: dados.fornecedorId } },
                     encarregado: { connect: { id: encarregadoId } },
 
-                    // Nullish Coalescing (?? null) para satisfazer o Prisma
                     kmAtual: dados.kmAtual ?? null,
-
                     data: dados.data,
                     tipo: dados.tipo,
                     custoTotal: custoTotalGeral,
-
                     observacoes: dados.observacoes ?? null,
                     fotoComprovanteUrl: dados.fotoComprovanteUrl ?? null,
 
@@ -85,6 +72,77 @@ export class ManutencaoController {
         } catch (error) {
             console.error("Erro criar OS:", error);
             res.status(500).json({ error: 'Erro ao registrar manutenção' });
+        }
+    }
+
+    // =========================================================
+    // MÉTODO UPDATE (CORRIGIDO)
+    // =========================================================
+    static async update(req: AuthenticatedRequest, res: Response) {
+        if (req.user?.role !== 'ADMIN' && req.user?.role !== 'ENCARREGADO') {
+            return res.status(403).json({ error: 'Acesso negado.' });
+        }
+
+        const { id } = req.params;
+        
+        // CORREÇÃO 1: Validação explícita do ID para o TypeScript entender que é string
+        if (!id) {
+            return res.status(400).json({ error: 'ID não informado.' });
+        }
+
+        const dados = req.body as ManutencaoData;
+
+        try {
+            const osAtualizada = await prisma.$transaction(async (tx) => {
+                
+                // Recalcula totais
+                let custoTotalGeral = 0;
+                const itensParaCriar = dados.itens.map((item) => {
+                    const total = item.quantidade * item.valorPorUnidade;
+                    custoTotalGeral += total;
+                    return {
+                        produtoId: item.produtoId,
+                        quantidade: item.quantidade,
+                        valorPorUnidade: item.valorPorUnidade,
+                        valorTotal: total,
+                    };
+                });
+
+                // Remove itens antigos
+                await tx.itemOrdemServico.deleteMany({
+                    where: { ordemServicoId: id } // id agora é garantido como string
+                });
+
+                // Atualiza OS
+                return await tx.ordemServico.update({
+                    where: { id }, // id agora é garantido como string
+                    data: {
+                        veiculoId: dados.veiculoId || null,
+                        fornecedorId: dados.fornecedorId,
+                        
+                        kmAtual: dados.kmAtual ?? null,
+                        data: dados.data,
+                        tipo: dados.tipo,
+                        custoTotal: custoTotalGeral,
+                        observacoes: dados.observacoes ?? null,
+                        
+                        // CORREÇÃO 2: Spread condicional para evitar passar 'undefined'
+                        // Se dados.fotoComprovanteUrl for undefined, a chave nem entra no objeto data
+                        ...(dados.fotoComprovanteUrl !== undefined ? { fotoComprovanteUrl: dados.fotoComprovanteUrl } : {}),
+
+                        itens: {
+                            create: itensParaCriar
+                        }
+                    },
+                    include: { itens: { include: { produto: true } } }
+                });
+            });
+
+            res.json(osAtualizada);
+
+        } catch (error) {
+            console.error("Erro ao atualizar OS:", error);
+            res.status(500).json({ error: 'Erro ao atualizar registro de manutenção.' });
         }
     }
 
