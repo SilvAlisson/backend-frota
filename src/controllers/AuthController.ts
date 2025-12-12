@@ -12,6 +12,7 @@ import {
     generateTokenSchema
 } from '../schemas/auth.schemas';
 
+// Extração de Tipos do Zod
 type LoginData = z.infer<typeof loginSchema>['body'];
 type LoginTokenData = z.infer<typeof loginWithTokenSchema>['body'];
 type GenerateTokenParams = z.infer<typeof generateTokenSchema>['params'];
@@ -83,6 +84,7 @@ export class AuthController {
 
     static async generateToken(req: AuthenticatedRequest, res: Response) {
         try {
+            // 1. Quem pode GERAR? Apenas Gestores (Admin e Encarregado)
             if (req.user?.role !== 'ADMIN' && req.user?.role !== 'ENCARREGADO') {
                 return res.status(403).json({ error: 'Acesso negado. Apenas gestores podem gerar QR Code.' });
             }
@@ -92,6 +94,8 @@ export class AuthController {
             const userToCheck = await prisma.user.findUnique({ where: { id } });
             if (!userToCheck) return res.status(404).json({ error: 'Usuário não encontrado.' });
 
+            // 2. Quem pode TER um QR Code? (Operador e Encarregado)
+            // Isso permite que um Encarregado gere um token para si mesmo ou para outro Encarregado/Operador
             if (userToCheck.role !== 'OPERADOR' && userToCheck.role !== 'ENCARREGADO') {
                 return res.status(400).json({ error: 'Apenas Operadores e Encarregados podem ter acesso via QR Code.' });
             }
