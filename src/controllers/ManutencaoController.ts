@@ -4,7 +4,9 @@ import { KmService } from '../services/KmService';
 import { AuthenticatedRequest } from '../middleware/auth';
 import { z } from 'zod';
 import { manutencaoSchema } from '../schemas/operacao.schemas';
+import { Prisma } from '@prisma/client'; // Import necessário para tipagem
 
+// Extraímos o tipo limpo do schema
 type ManutencaoData = z.infer<typeof manutencaoSchema>['body'];
 
 export class ManutencaoController {
@@ -77,11 +79,11 @@ export class ManutencaoController {
         try {
             const osAtualizada = await prisma.$transaction(async (tx) => {
                 
-                // Verifica existência
+                // 1. Verifica existência
                 const exists = await tx.ordemServico.findUnique({ where: { id } });
                 if (!exists) throw new Error("RECORD_NOT_FOUND");
 
-                // Recalcula totais
+                // 2. Recalcula totais
                 let custoTotalGeral = 0;
                 const itensParaCriar = dados.itens.map((item) => {
                     const total = item.quantidade * item.valorPorUnidade;
@@ -94,10 +96,10 @@ export class ManutencaoController {
                     };
                 });
 
-                // Remove itens antigos para recriar (evita complexidade de diff)
+                // 3. Remove itens antigos
                 await tx.itemOrdemServico.deleteMany({ where: { ordemServicoId: id } });
 
-                // Atualiza OS e insere novos itens
+                // 4. Atualiza OS
                 return await tx.ordemServico.update({
                     where: { id },
                     data: {
@@ -126,30 +128,54 @@ export class ManutencaoController {
     static async listRecent(req: Request, res: Response) {
         try {
             const { dataInicio, dataFim, veiculoId, limit } = req.query;
-            const where: any = {};
+            
+            // Construção tipada do filtro 'where'
+            const where: Prisma.OrdemServicoWhereInput = {};
 
-            if (dataInicio && typeof dataInicio === 'string') where.data = { gte: new Date(dataInicio) };
-            if (dataFim && typeof dataFim === 'string') {
-                const fim = new Date(dataFim);
-                fim.setDate(fim.getDate() + 1);
-                where.data = { ...where.data, lt: fim };
+            if (dataInicio || dataFim) {
+                const dateFilter: Prisma.DateTimeFilter = {};
+                
+                if (dataInicio && typeof dataInicio === 'string') {
+                    dateFilter.gte = new Date(dataInicio);
+                }
+                
+                if (dataFim && typeof dataFim === 'string') {
+                    const fim = new Date(dataFim);
+                    fim.setDate(fim.getDate() + 1);
+                    dateFilter.lt = fim;
+                }
+                
+                if (Object.keys(dateFilter).length > 0) {
+                    where.data = dateFilter;
+                }
             }
-            if (veiculoId && typeof veiculoId === 'string') where.veiculoId = veiculoId;
 
-            const recentes = await prisma.ordemServico.findMany({
+            if (veiculoId && typeof veiculoId === 'string') {
+                where.veiculoId = veiculoId;
+            }
+
+            // Construção explícita das opções para evitar erros de tipo com 'exactOptionalPropertyTypes'
+            const options: Prisma.OrdemServicoFindManyArgs = {
                 where,
-                // CORREÇÃO TS: Spread condicional para evitar erro de tipo com 'undefined'
-                ...(limit !== 'all' ? { take: 50 } : {}),
                 orderBy: { data: 'desc' },
                 include: {
-                    veiculo: { select: { placa: true, modelo: true } },
+                    // Importante: 'id: true' para que o frontend receba o ID do veículo
+                    veiculo: { select: { id: true, placa: true, modelo: true } },
                     encarregado: { select: { nome: true } },
                     fornecedor: { select: { nome: true } },
                     itens: { include: { produto: { select: { nome: true } } } }
                 }
-            });
+            };
+
+            // Aplica o limite se não for 'all'
+            if (limit !== 'all') {
+                options.take = 50;
+            }
+
+            const recentes = await prisma.ordemServico.findMany(options);
             res.json(recentes);
         } catch (error) {
+            console.error("Erro listRecent:", error);
             res.status(500).json({ error: 'Erro ao buscar histórico.' });
         }
     }

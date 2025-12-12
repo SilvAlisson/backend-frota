@@ -18,14 +18,15 @@ export class AbastecimentoController {
         try {
             const dados = req.body as AbastecimentoData;
 
-            // Validação de Auditoria (KM)
+            // 1. Verificação de Estado Atual (Auditoria)
             const ultimoKM = await KmService.getUltimoKMRegistrado(dados.veiculoId);
 
             // Apenas alerta, não bloqueia (permite lançamento retroativo)
             if (dados.kmOdometro < ultimoKM) {
-                console.warn(`[Abastecimento] Retroativo: KM ${dados.kmOdometro} < Atual ${ultimoKM}. Veículo: ${dados.veiculoId}`);
+                console.warn(`[Abastecimento] Retroativo: KM informado ${dados.kmOdometro} < Atual ${ultimoKM}. Veículo: ${dados.veiculoId}`);
             }
 
+            // 2. Preparação dos Itens
             let custoTotalGeral = 0;
             const itensParaCriar = dados.itens.map((item) => {
                 const total = item.quantidade * item.valorPorUnidade;
@@ -38,7 +39,8 @@ export class AbastecimentoController {
                 };
             });
 
-            // Transação para garantir consistência
+            // 3. Transação ACID
+            // Garante que o registro seja atômico
             const novoAbastecimento = await prisma.$transaction(async (tx) => {
                 return await tx.abastecimento.create({
                     data: {
@@ -75,13 +77,17 @@ export class AbastecimentoController {
 
             if (dataInicio || dataFim) {
                 const dateFilter: Prisma.DateTimeFilter = {};
-                if (dataInicio && typeof dataInicio === 'string') dateFilter.gte = new Date(dataInicio);
+                if (dataInicio && typeof dataInicio === 'string') {
+                    dateFilter.gte = new Date(dataInicio);
+                }
                 if (dataFim && typeof dataFim === 'string') {
                     const fim = new Date(dataFim);
                     fim.setDate(fim.getDate() + 1);
                     dateFilter.lt = fim;
                 }
-                if (Object.keys(dateFilter).length > 0) where.dataHora = dateFilter;
+                if (Object.keys(dateFilter).length > 0) {
+                    where.dataHora = dateFilter;
+                }
             }
 
             if (veiculoId && typeof veiculoId === 'string') {
@@ -90,11 +96,12 @@ export class AbastecimentoController {
 
             const recentes = await prisma.abastecimento.findMany({
                 where,
-                // CORREÇÃO TS: Adiciona 'take' apenas se houver limite. Evita passar 'undefined'.
+                // Spread condicional para evitar erro de tipo com 'undefined'
                 ...(limit !== 'all' ? { take: 50 } : {}),
                 orderBy: { dataHora: 'desc' },
                 include: {
-                    veiculo: { select: { placa: true, modelo: true } },
+                    // CORREÇÃO: Adicionado 'id: true' para que o frontend consiga vincular os dados corretamente
+                    veiculo: { select: { id: true, placa: true, modelo: true } },
                     operador: { select: { nome: true } },
                     fornecedor: { select: { nome: true } },
                     itens: { include: { produto: { select: { nome: true, tipo: true } } } }
@@ -109,13 +116,12 @@ export class AbastecimentoController {
 
     static async delete(req: AuthenticatedRequest, res: Response) {
         if (req.user?.role !== 'ADMIN') return res.status(403).json({ error: 'Acesso negado.' });
+
         const { id } = req.params;
-        
         if (!id) return res.status(400).json({ error: 'ID inválido.' });
 
         try {
             await prisma.$transaction(async (tx) => {
-                // Verifica existência para garantir erro correto se não achar
                 const exists = await tx.abastecimento.findUnique({ where: { id } });
                 if (!exists) throw new Error("RECORD_NOT_FOUND");
 
@@ -125,9 +131,8 @@ export class AbastecimentoController {
 
             res.json({ message: 'Abastecimento removido.' });
         } catch (error: any) {
-            if (error.message === "RECORD_NOT_FOUND") return res.status(404).json({ error: "Registro não encontrado." });
-            console.error(error);
-            res.status(500).json({ error: 'Erro ao deletar.' });
+            if (error.message === 'RECORD_NOT_FOUND') return res.status(404).json({ error: 'Registro não encontrado.' });
+            res.status(500).json({ error: 'Erro ao deletar registro.' });
         }
     }
 }
