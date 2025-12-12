@@ -6,7 +6,6 @@ import { Prisma } from '@prisma/client';
 import { z } from 'zod';
 import { abastecimentoSchema } from '../schemas/operacao.schemas';
 
-// Extraímos o tipo inferido do corpo do schema
 type AbastecimentoData = z.infer<typeof abastecimentoSchema>['body'];
 
 export class AbastecimentoController {
@@ -19,14 +18,15 @@ export class AbastecimentoController {
         try {
             const dados = req.body as AbastecimentoData;
 
+            // Validação de Auditoria (KM)
             const ultimoKM = await KmService.getUltimoKMRegistrado(dados.veiculoId);
 
+            // Apenas alerta, não bloqueia (permite lançamento retroativo)
             if (dados.kmOdometro < ultimoKM) {
-                console.warn(`[Abastecimento] KM informado (${dados.kmOdometro}) é menor que o atual (${ultimoKM}). Permitido (lançamento retroativo).`);
+                console.warn(`[Abastecimento] Retroativo: KM ${dados.kmOdometro} < Atual ${ultimoKM}. Veículo: ${dados.veiculoId}`);
             }
 
             let custoTotalGeral = 0;
-
             const itensParaCriar = dados.itens.map((item) => {
                 const total = item.quantidade * item.valorPorUnidade;
                 custoTotalGeral += total;
@@ -38,29 +38,25 @@ export class AbastecimentoController {
                 };
             });
 
-            const novoAbastecimento = await prisma.abastecimento.create({
-                data: {
-                    veiculo: { connect: { id: dados.veiculoId } },
-                    operador: { connect: { id: dados.operadorId } },
-                    fornecedor: { connect: { id: dados.fornecedorId } },
-                    kmOdometro: dados.kmOdometro,
-                    dataHora: dados.dataHora,
-                    custoTotal: custoTotalGeral,
-
-                    // Usar '?? null' para garantir que undefined vire null
-                    placaCartaoUsado: dados.placaCartaoUsado ?? null,
-                    observacoes: dados.observacoes ?? null,
-                    justificativa: dados.justificativa ?? null,
-                    fotoNotaFiscalUrl: dados.fotoNotaFiscalUrl ?? null,
-
-                    itens: { create: itensParaCriar },
-                },
-                include: { itens: { include: { produto: true } } },
+            // Transação para garantir consistência
+            const novoAbastecimento = await prisma.$transaction(async (tx) => {
+                return await tx.abastecimento.create({
+                    data: {
+                        veiculo: { connect: { id: dados.veiculoId } },
+                        operador: { connect: { id: dados.operadorId } },
+                        fornecedor: { connect: { id: dados.fornecedorId } },
+                        kmOdometro: dados.kmOdometro,
+                        dataHora: dados.dataHora,
+                        custoTotal: custoTotalGeral,
+                        placaCartaoUsado: dados.placaCartaoUsado ?? null,
+                        observacoes: dados.observacoes ?? null,
+                        justificativa: dados.justificativa ?? null,
+                        fotoNotaFiscalUrl: dados.fotoNotaFiscalUrl ?? null,
+                        itens: { create: itensParaCriar },
+                    },
+                    include: { itens: { include: { produto: true } } },
+                });
             });
-
-            if (dados.kmOdometro > ultimoKM) {
-
-            }
 
             res.status(201).json(novoAbastecimento);
         } catch (error) {
@@ -74,25 +70,18 @@ export class AbastecimentoController {
             return res.status(403).json({ error: 'Acesso negado.' });
         }
         try {
-            const { dataInicio, dataFim, veiculoId } = req.query;
+            const { dataInicio, dataFim, veiculoId, limit } = req.query;
             const where: Prisma.AbastecimentoWhereInput = {};
 
             if (dataInicio || dataFim) {
                 const dateFilter: Prisma.DateTimeFilter = {};
-
-                if (dataInicio && typeof dataInicio === 'string') {
-                    dateFilter.gte = new Date(dataInicio);
-                }
-
+                if (dataInicio && typeof dataInicio === 'string') dateFilter.gte = new Date(dataInicio);
                 if (dataFim && typeof dataFim === 'string') {
                     const fim = new Date(dataFim);
                     fim.setDate(fim.getDate() + 1);
                     dateFilter.lt = fim;
                 }
-
-                if (Object.keys(dateFilter).length > 0) {
-                    where.dataHora = dateFilter;
-                }
+                if (Object.keys(dateFilter).length > 0) where.dataHora = dateFilter;
             }
 
             if (veiculoId && typeof veiculoId === 'string') {
@@ -101,7 +90,8 @@ export class AbastecimentoController {
 
             const recentes = await prisma.abastecimento.findMany({
                 where,
-                take: 50,
+                // CORREÇÃO TS: Adiciona 'take' apenas se houver limite. Evita passar 'undefined'.
+                ...(limit !== 'all' ? { take: 50 } : {}),
                 orderBy: { dataHora: 'desc' },
                 include: {
                     veiculo: { select: { placa: true, modelo: true } },
@@ -119,19 +109,25 @@ export class AbastecimentoController {
 
     static async delete(req: AuthenticatedRequest, res: Response) {
         if (req.user?.role !== 'ADMIN') return res.status(403).json({ error: 'Acesso negado.' });
-
         const { id } = req.params;
+        
         if (!id) return res.status(400).json({ error: 'ID inválido.' });
 
         try {
-            await prisma.$transaction([
-                prisma.itemAbastecimento.deleteMany({ where: { abastecimentoId: id } }),
-                prisma.abastecimento.delete({ where: { id } })
-            ]);
+            await prisma.$transaction(async (tx) => {
+                // Verifica existência para garantir erro correto se não achar
+                const exists = await tx.abastecimento.findUnique({ where: { id } });
+                if (!exists) throw new Error("RECORD_NOT_FOUND");
+
+                await tx.itemAbastecimento.deleteMany({ where: { abastecimentoId: id } });
+                await tx.abastecimento.delete({ where: { id } });
+            });
 
             res.json({ message: 'Abastecimento removido.' });
-        } catch (error) {
-            res.status(500).json({ error: 'Erro ao deletar registo.' });
+        } catch (error: any) {
+            if (error.message === "RECORD_NOT_FOUND") return res.status(404).json({ error: "Registro não encontrado." });
+            console.error(error);
+            res.status(500).json({ error: 'Erro ao deletar.' });
         }
     }
 }

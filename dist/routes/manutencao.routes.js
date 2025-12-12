@@ -8,6 +8,7 @@ const operacao_schemas_1 = require("../schemas/operacao.schemas");
 const router = (0, express_1.Router)();
 router.use(auth_1.authenticateToken);
 router.post('/', (0, validate_1.validate)(operacao_schemas_1.manutencaoSchema), ManutencaoController_1.ManutencaoController.create);
+router.put('/:id', (0, validate_1.validate)(operacao_schemas_1.manutencaoSchema), ManutencaoController_1.ManutencaoController.update); // <--- CORREÇÃO AQUI
 router.get('/recentes', ManutencaoController_1.ManutencaoController.listRecent);
 router.delete('/:id', ManutencaoController_1.ManutencaoController.delete);
 exports.default = router;
