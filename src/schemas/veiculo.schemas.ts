@@ -21,6 +21,9 @@ export const veiculoSchema = z.object({
 
         capacidadeTanque: z.coerce.number().positive().optional().nullable(),
 
+        // NOVO: Status para Dashboard Inteligente
+        status: z.enum(['ATIVO', 'EM_MANUTENCAO', 'INATIVO']).optional().default('ATIVO'),
+
         vencimentoCiv: z.coerce.date().optional().nullable(),
         vencimentoCipp: z.coerce.date().optional().nullable(),
     })

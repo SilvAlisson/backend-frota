@@ -4,7 +4,7 @@ import { KmService } from '../services/KmService';
 import { AuthenticatedRequest } from '../middleware/auth';
 import { z } from 'zod';
 import { manutencaoSchema } from '../schemas/operacao.schemas';
-import { Prisma } from '@prisma/client'; // Import necessário para tipagem
+import { Prisma } from '@prisma/client';
 
 // Extraímos o tipo limpo do schema
 type ManutencaoData = z.infer<typeof manutencaoSchema>['body'];
@@ -21,7 +21,39 @@ export class ManutencaoController {
         try {
             const dados = req.body as ManutencaoData;
 
-            // Auditoria de KM (Apenas log se retroativo)
+            // =================================================================================
+            // 1. INTELIGÊNCIA: ALERTA DE GARANTIA (90 Dias)
+            // =================================================================================
+            // Verifica se algum item já foi trocado recentemente neste veículo
+            if (dados.veiculoId) {
+                const diasGarantia = 90;
+                const dataLimite = new Date();
+                dataLimite.setDate(dataLimite.getDate() - diasGarantia);
+
+                // Usamos loop for..of para permitir await sequencial (ou Promise.all)
+                for (const item of dados.itens) {
+                    const ultimaTroca = await prisma.itemOrdemServico.findFirst({
+                        where: {
+                            produtoId: item.produtoId,
+                            ordemServico: {
+                                veiculoId: dados.veiculoId,
+                                data: { gte: dataLimite }
+                            }
+                        },
+                        orderBy: { ordemServico: { data: 'desc' } },
+                        include: { ordemServico: true, produto: true }
+                    });
+
+                    if (ultimaTroca) {
+                        // Loga o alerta no servidor (futuramente pode retornar um aviso ao frontend)
+                        console.warn(`[Manutenção] ALERTA DE GARANTIA: Item "${ultimaTroca.produto.nome}" foi trocado em ${ultimaTroca.ordemServico.data.toLocaleDateString()}. Veículo: ${dados.veiculoId}`);
+                    }
+                }
+            }
+
+            // =================================================================================
+            // 2. VALIDAÇÃO DE KM (AUDITORIA)
+            // =================================================================================
             if (dados.veiculoId && dados.kmAtual) {
                 const ultimoKM = await KmService.getUltimoKMRegistrado(dados.veiculoId);
                 if (dados.kmAtual < ultimoKM) {
@@ -29,6 +61,7 @@ export class ManutencaoController {
                 }
             }
 
+            // 3. Preparação dos Itens (COM CORREÇÃO DECIMAL)
             let custoTotalGeral = 0;
             const itensParaCriar = dados.itens.map((item) => {
                 const total = item.quantidade * item.valorPorUnidade;
@@ -37,10 +70,15 @@ export class ManutencaoController {
                     produtoId: item.produtoId,
                     quantidade: item.quantidade,
                     valorPorUnidade: item.valorPorUnidade,
-                    valorTotal: total,
+                    // CORREÇÃO: Arredondamento para evitar dízimas no banco
+                    valorTotal: Number(total.toFixed(2)),
                 };
             });
 
+            // Arredonda o total geral da OS
+            custoTotalGeral = Number(custoTotalGeral.toFixed(2));
+
+            // 4. Transação (Criação)
             const novaOS = await prisma.$transaction(async (tx) => {
                 return await tx.ordemServico.create({
                     data: {
@@ -78,12 +116,10 @@ export class ManutencaoController {
 
         try {
             const osAtualizada = await prisma.$transaction(async (tx) => {
-                
-                // 1. Verifica existência
+
                 const exists = await tx.ordemServico.findUnique({ where: { id } });
                 if (!exists) throw new Error("RECORD_NOT_FOUND");
 
-                // 2. Recalcula totais
                 let custoTotalGeral = 0;
                 const itensParaCriar = dados.itens.map((item) => {
                     const total = item.quantidade * item.valorPorUnidade;
@@ -92,14 +128,16 @@ export class ManutencaoController {
                         produtoId: item.produtoId,
                         quantidade: item.quantidade,
                         valorPorUnidade: item.valorPorUnidade,
-                        valorTotal: total,
+                        // CORREÇÃO: Arredondamento
+                        valorTotal: Number(total.toFixed(2)),
                     };
                 });
 
-                // 3. Remove itens antigos
+                // Arredonda o total geral da OS
+                custoTotalGeral = Number(custoTotalGeral.toFixed(2));
+
                 await tx.itemOrdemServico.deleteMany({ where: { ordemServicoId: id } });
 
-                // 4. Atualiza OS
                 return await tx.ordemServico.update({
                     where: { id },
                     data: {
@@ -128,23 +166,22 @@ export class ManutencaoController {
     static async listRecent(req: Request, res: Response) {
         try {
             const { dataInicio, dataFim, veiculoId, limit } = req.query;
-            
-            // Construção tipada do filtro 'where'
+
             const where: Prisma.OrdemServicoWhereInput = {};
 
             if (dataInicio || dataFim) {
                 const dateFilter: Prisma.DateTimeFilter = {};
-                
+
                 if (dataInicio && typeof dataInicio === 'string') {
                     dateFilter.gte = new Date(dataInicio);
                 }
-                
+
                 if (dataFim && typeof dataFim === 'string') {
                     const fim = new Date(dataFim);
                     fim.setDate(fim.getDate() + 1);
                     dateFilter.lt = fim;
                 }
-                
+
                 if (Object.keys(dateFilter).length > 0) {
                     where.data = dateFilter;
                 }
@@ -154,12 +191,10 @@ export class ManutencaoController {
                 where.veiculoId = veiculoId;
             }
 
-            // Construção explícita das opções para evitar erros de tipo com 'exactOptionalPropertyTypes'
             const options: Prisma.OrdemServicoFindManyArgs = {
                 where,
                 orderBy: { data: 'desc' },
                 include: {
-                    // Importante: 'id: true' para que o frontend receba o ID do veículo
                     veiculo: { select: { id: true, placa: true, modelo: true } },
                     encarregado: { select: { nome: true } },
                     fornecedor: { select: { nome: true } },
@@ -167,7 +202,6 @@ export class ManutencaoController {
                 }
             };
 
-            // Aplica o limite se não for 'all'
             if (limit !== 'all') {
                 options.take = 50;
             }
@@ -182,7 +216,7 @@ export class ManutencaoController {
 
     static async delete(req: AuthenticatedRequest, res: Response) {
         if (req.user?.role !== 'ADMIN') return res.status(403).json({ error: 'Apenas ADMIN.' });
-        
+
         const { id } = req.params;
         if (!id) return res.status(400).json({ error: 'ID inválido.' });
 

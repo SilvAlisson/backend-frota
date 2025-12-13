@@ -11,25 +11,23 @@ datasource db {
 }
 
 // ==========================================================
-// 1. CONFIGURAÇÕES E RH (Novos Módulos)
+// 1. CONFIGURAÇÕES E RH
 // ==========================================================
 
-// Configuração global de alertas (Editável pelo Admin/Coordenador)
 model ConfiguracaoSistema {
   id                     String   @id @default(cuid())
-  diasAntecedenciaAlerta Int      @default(30)   // Ex: 30 dias para vencer CNH/Docs
-  kmAntecedenciaAlerta   Float    @default(1500) // Ex: 1500 km para manutenção
+  diasAntecedenciaAlerta Int      @default(30)
+  kmAntecedenciaAlerta   Float    @default(1500)
   updatedAt              DateTime @updatedAt
 }
 
-// Treinamentos e Cursos (Módulo RH - Histórico do Colaborador)
 model Treinamento {
   id             String    @id @default(cuid())
-  nome           String    // Ex: "MOPP", "Direção Defensiva"
+  nome           String
   descricao      String?
   dataRealizacao DateTime
-  dataVencimento DateTime? // Para alertas de renovação
-  comprovanteUrl String?   // Foto/PDF do certificado
+  dataVencimento DateTime?
+  comprovanteUrl String?
 
   user   User   @relation(fields: [userId], references: [id])
   userId String
@@ -38,7 +36,6 @@ model Treinamento {
   updatedAt DateTime @updatedAt
 }
 
-// Cargos e Funções (Ex: Motorista Truck, Operador de Munck)
 model Cargo {
   id        String   @id @default(cuid())
   nome      String   @unique 
@@ -46,32 +43,30 @@ model Cargo {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  // Relacionamentos
   colaboradores User[]
   requisitos    TreinamentoObrigatorio[]
 }
 
-// Regras de Treinamento por Cargo (O que a vaga exige)
 model TreinamentoObrigatorio {
   id                     String @id @default(cuid())
-  nome                   String // Ex: "Curso MOPP"
-  validadeMeses          Int    // Ex: 24 (2 anos). Se 0, não vence.
-  diasAntecedenciaAlerta Int    @default(30) // Alerta personalizado pelo RH para este curso
+  nome                   String
+  validadeMeses          Int
+  diasAntecedenciaAlerta Int    @default(30)
 
   cargo   Cargo  @relation(fields: [cargoId], references: [id], onDelete: Cascade)
   cargoId String
 }
 
 // ==========================================================
-// 2. GESTÃO DE USUÁRIOS E PERFIS
+// 2. GESTÃO DE USUÁRIOS
 // ==========================================================
 
 enum UserRole {
   OPERADOR
   ENCARREGADO
   ADMIN
-  RH            // Novo papel
-  COORDENADOR   // Novo papel
+  RH
+  COORDENADOR
 }
 
 model User {
@@ -81,29 +76,22 @@ model User {
   password  String
   matricula String?  @unique
   role      UserRole @default(OPERADOR)
-  
-  // Novo campo para Foto de Perfil (Avatar/Crachá)
   fotoUrl   String?
   
-  // --- Vínculo de RH ---
   cargo   Cargo? @relation(fields: [cargoId], references: [id])
   cargoId String?
   
-  // --- DADOS DO RH (CNH & Docs) ---
   cnhNumero    String?
-  cnhCategoria String?   // Ex: "AE", "E"
+  cnhCategoria String?
   cnhValidade  DateTime? 
   dataAdmissao DateTime?
 
-  // Acesso Rápido / Recuperação
-  loginToken           String?   @unique
-  // REMOVIDO: loginTokenExpiresAt DateTime? <-- Garantia de permanência
+  loginToken String? @unique
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  // Relacionamentos
-  treinamentos             Treinamento[]   // Histórico de cursos realizados
+  treinamentos             Treinamento[]
   jornadasComoOperador     Jornada[]       @relation("OperadorJornada")
   jornadasComoEncarregado  Jornada[]       @relation("EncarregadoJornada")
   abastecimentos           Abastecimento[]
@@ -111,7 +99,7 @@ model User {
 }
 
 // ==========================================================
-// 3. ATIVOS (Veículos e Produtos)
+// 3. ATIVOS (Veículos e Catálogo)
 // ==========================================================
 
 model Veiculo {
@@ -119,36 +107,40 @@ model Veiculo {
   placa            String          @unique
   modelo           String
   ano              Int
-  tipoVeiculo      String?         // Ex: "Poliguindaste", "Vácuo", "Munck"
+  tipoVeiculo      String?         
   tipoCombustivel  TipoCombustivel @default(DIESEL_S10)
   capacidadeTanque Float?
   
-  // Controle de Documentação do Veículo
-  vencimentoCiv  DateTime?
-  vencimentoCipp DateTime?
+  vencimentoCiv    DateTime?
+  vencimentoCipp   DateTime?
+  
+  // NOVO: Status operacional para dashboard (Ex: Ativo, Na Oficina)
+  status           StatusVeiculo   @default(ATIVO) 
   
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  // Relacionamentos
   jornadas           Jornada[]
   abastecimentos     Abastecimento[]
   ordensServico      OrdemServico[]
-  planosManutencao PlanoManutencao[]
+  planosManutencao   PlanoManutencao[]
+  historicoKm        HistoricoKm[]    // <--- NOVO: Rastreabilidade total de KM
 }
 
 model Produto {
   id            String      @id @default(cuid())
-  nome          String      @unique // Ex: "DIESEL S10", "FILTRO DE AR"
+  nome          String      @unique 
   tipo          TipoProduto
-  unidadeMedida String      @default("Litro") // Litro, Unidade, Peça, Hora
+  unidadeMedida String      @default("Litro")
+  
+  // SEM ESTOQUE: Funciona apenas como catálogo de itens/serviços
+  
   createdAt     DateTime    @default(now())
 
   itensAbastecimento ItemAbastecimento[]
   itensOrdemServico  ItemOrdemServico[]
 }
 
-// NOVO ENUM PARA FORNECEDORES
 enum TipoFornecedor {
   POSTO
   OFICINA
@@ -161,8 +153,6 @@ model Fornecedor {
   id        String   @id @default(cuid())
   nome      String   @unique
   cnpj      String?  @unique
-  
-  // NOVO CAMPO DE CLASSIFICAÇÃO
   tipo      TipoFornecedor @default(OUTROS)
   
   createdAt DateTime @default(now())
@@ -172,8 +162,22 @@ model Fornecedor {
 }
 
 // ==========================================================
-// 4. OPERACIONAL (Dia a Dia)
+// 4. OPERACIONAL & INTELIGÊNCIA
 // ==========================================================
+
+// NOVO: Tabela para inteligência de frota (Média de rodagem, previsão de revisão)
+model HistoricoKm {
+  id           String   @id @default(cuid())
+  km           Float
+  dataLeitura  DateTime @default(now())
+  
+  // Quem gerou esse KM? (Rastreabilidade)
+  origem       String   // "JORNADA", "ABASTECIMENTO", "MANUTENCAO", "MANUAL"
+  origemId     String?  // ID do registro que gerou
+  
+  veiculo      Veiculo  @relation(fields: [veiculoId], references: [id])
+  veiculoId    String
+}
 
 model Jornada { 
   id          String    @id @default(cuid())
@@ -203,13 +207,11 @@ model Abastecimento {
   id                String   @id @default(cuid())
   dataHora          DateTime
   kmOdometro        Float
-  
-  // 💰 Decimal para precisão monetária
   custoTotal        Decimal  @db.Decimal(10, 2)
   
   placaCartaoUsado  String?
   observacoes       String?
-  justificativa     String?  // Caso o consumo esteja fora da média
+  justificativa     String?
   fotoNotaFiscalUrl String?
   createdAt         DateTime @default(now())
 
@@ -228,11 +230,8 @@ model Abastecimento {
 model ItemAbastecimento {
   id              String   @id @default(cuid())
   quantidade      Float
-  
-  // 💰 Decimal para precisão monetária
   valorPorUnidade Decimal  @db.Decimal(10, 2)
   valorTotal      Decimal  @db.Decimal(10, 2)
-  
   createdAt       DateTime @default(now())
 
   abastecimento   Abastecimento @relation(fields: [abastecimentoId], references: [id])
@@ -243,33 +242,31 @@ model ItemAbastecimento {
 }
 
 // ==========================================================
-// 5. MANUTENÇÃO E SERVIÇOS
+// 5. MANUTENÇÃO (Com Status)
 // ==========================================================
 
 model OrdemServico {
   id                 String         @id @default(cuid())
   data               DateTime
   
-  // Agora opcionais para permitir manutenção sem veículo (ex: Caçamba)
   kmAtual            Float?
   veiculoId          String?
-  
-  // 💰 Decimal para precisão monetária
   custoTotal         Decimal        @db.Decimal(10, 2)
   
   tipo               TipoManutencao
+  
+  // NOVO: Controle de status (Aberto/Fechado)
+  status             StatusOS       @default(CONCLUIDA) 
+  
   observacoes        String?
   fotoComprovanteUrl String?
   createdAt          DateTime       @default(now())
 
-  // Relação opcional
   veiculo        Veiculo?           @relation(fields: [veiculoId], references: [id])
-  
   fornecedor     Fornecedor         @relation(fields: [fornecedorId], references: [id])
   fornecedorId   String
-  
   encarregado    User               @relation(fields: [encarregadoId], references: [id])
-  encarregadoId String
+  encarregadoId  String
   
   itens          ItemOrdemServico[]
 }
@@ -277,8 +274,6 @@ model OrdemServico {
 model ItemOrdemServico {
   id              String  @id @default(cuid())
   quantidade      Float
-  
-  // 💰 Decimal para precisão monetária
   valorPorUnidade Decimal @db.Decimal(10, 2)
   valorTotal      Decimal @db.Decimal(10, 2)
   
@@ -290,13 +285,13 @@ model ItemOrdemServico {
 }
 
 model PlanoManutencao {
-  id                    String                  @id @default(cuid())
-  descricao             String                  // Ex: "Troca de Óleo Motor"
-  tipoIntervalo TipoIntervaloManutencao
-  valorIntervalo Float                 // Ex: 10000 (se KM) ou 180 (se dias)
+  id                    String   @id @default(cuid())
+  descricao             String                  
+  tipoIntervalo         TipoIntervaloManutencao
+  valorIntervalo        Float                 
   
-  kmProximaManutencao   Float?        // Calculado automaticamente pelo sistema
-  dataProximaManutencao DateTime?     // Calculado automaticamente pelo sistema
+  kmProximaManutencao   Float?
+  dataProximaManutencao DateTime?     
 
   veiculo       Veiculo @relation(fields: [veiculoId], references: [id])
   veiculoId     String
@@ -306,12 +301,25 @@ model PlanoManutencao {
 // ENUMS
 // ==========================================================
 
+enum StatusVeiculo {
+  ATIVO
+  EM_MANUTENCAO
+  INATIVO
+}
+
+enum StatusOS {
+  PENDENTE      // Criada, aguardando aprovação/execução
+  EM_ANDAMENTO  // O carro está na oficina
+  CONCLUIDA     // Serviço feito e pago
+  CANCELADA
+}
+
 enum TipoProduto {
   COMBUSTIVEL
   ADITIVO
-  LAVAGEM       // Adicionado para controle de lavagens
-  PECA          // Adicionado para peças de manutenção
-  SERVICO       // Serviços gerais
+  LAVAGEM
+  PECA
+  SERVICO
   OUTRO
 }
 

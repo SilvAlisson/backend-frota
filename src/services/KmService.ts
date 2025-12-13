@@ -1,45 +1,49 @@
 import { prisma } from '../lib/prisma';
 
 export class KmService {
+
+    static async registrarKm(veiculoId: string, km: number, origem: 'JORNADA' | 'ABASTECIMENTO' | 'MANUTENCAO' | 'MANUAL', origemId?: string) {
+        if (!veiculoId || !km) return;
+
+        try {
+            // Grava no histórico imutável para auditoria e previsão
+            await prisma.historicoKm.create({
+                data: {
+                    veiculoId,
+                    km,
+                    origem,
+                    origemId: origemId ?? null,
+                    dataLeitura: new Date()
+                }
+            });
+
+        } catch (error) {
+            console.error(`[WARN] Falha ao registrar histórico de KM para o veículo ${veiculoId}`, error);
+            // Não lançamos erro para não travar a operação principal (fail-open)
+        }
+    }
+
     /**
-     * Busca o MAIOR KM registado para um veículo.
-     * @throws Error se houver falha na comunicação com o banco.
+     * Busca o MAIOR KM registrado para um veículo usando a tabela Otimizada (HistoricoKm).
      */
     static async getUltimoKMRegistrado(veiculoId: string): Promise<number> {
         try {
-            // 1. Busca o maior KM de Jornada (kmFim)
-            const ultimaJornada = await prisma.jornada.findFirst({
-                where: { veiculoId: veiculoId, kmFim: { not: null } },
-                orderBy: { kmFim: 'desc' },
-                select: { kmFim: true }
+            // 1. Busca na tabela inteligente (Indexada e Rápida)
+            const historico = await prisma.historicoKm.findFirst({
+                where: { veiculoId },
+                orderBy: { km: 'desc' }, // Pega o maior valor absoluto
+                select: { km: true }
             });
 
-            // 2. Busca o maior KM de Abastecimento
-            const ultimoAbastecimento = await prisma.abastecimento.findFirst({
-                where: { veiculoId: veiculoId },
-                orderBy: { kmOdometro: 'desc' },
-                select: { kmOdometro: true }
-            });
+            if (historico) return historico.km;
 
-            // 3. Busca o maior KM de Ordem de Serviço
-            const ultimaOS = await prisma.ordemServico.findFirst({
-                where: { veiculoId: veiculoId },
-                orderBy: { kmAtual: 'desc' },
-                select: { kmAtual: true }
-            });
-
-            // 4. Compara os três e retorna o maior de todos
-            const maxKmJornada = ultimaJornada?.kmFim ?? 0;
-            const maxKmAbastecimento = ultimoAbastecimento?.kmOdometro ?? 0;
-            const maxKmOS = ultimaOS?.kmAtual ?? 0;
-
-            return Math.max(maxKmJornada, maxKmAbastecimento, maxKmOS);
+            // Se não tiver histórico nenhum, retorna 0
+            return 0;
 
         } catch (error) {
-            // LOG PROFISSIONAL (Futuramente usar Winston/Pino)
             console.error(`[CRITICAL] Falha ao validar KM do veículo ${veiculoId}:`, error);
-
-            throw new Error("Não foi possível validar a quilometragem do veículo. Operação abortada por segurança.");
+            // Retorna 0 para não bloquear a operação em caso de falha de banco
+            return 0;
         }
     }
 }

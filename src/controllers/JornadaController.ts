@@ -14,13 +14,53 @@ type BuscaJornadaQuery = z.infer<typeof buscaJornadaSchema>['query'];
 
 export class JornadaController {
 
-    // --- INICIAR JORNADA (Com Lógica de Rendição) ---
+    // --- INICIAR JORNADA (Com Blindagem e Lógica de Rendição) ---
     static async iniciar(req: AuthenticatedRequest, res: Response) {
         try {
             const { veiculoId, encarregadoId, kmInicio, observacoes, fotoInicioUrl } = req.body as IniciarJornadaData;
             const operadorId = req.user?.userId;
 
             if (!operadorId) return res.status(401).json({ error: 'Usuário não autenticado.' });
+
+            // =================================================================================
+            // PASSO 0: BLINDAGEM MOTORISTA FANTASMA (Jornada Dupla)
+            // =================================================================================
+            // Impede que um operador inicie uma nova jornada se já tiver outra aberta em qualquer veículo
+            const jornadaEmAberto = await prisma.jornada.findFirst({
+                where: {
+                    operadorId: operadorId,
+                    dataFim: null
+                },
+                include: { veiculo: true }
+            });
+
+            if (jornadaEmAberto) {
+                return res.status(409).json({
+                    error: `Você já possui uma jornada em andamento no veículo ${jornadaEmAberto.veiculo.placa}. Finalize-a antes de iniciar uma nova.`
+                });
+            }
+
+            // Busca dados para validações de CNH
+            const veiculo = await prisma.veiculo.findUnique({ where: { id: veiculoId } });
+            const usuario = await prisma.user.findUnique({ where: { id: operadorId } });
+
+            if (!veiculo || !usuario) return res.status(404).json({ error: 'Veículo ou usuário não encontrados.' });
+
+            // =================================================================================
+            // PASSO 0.5: BLINDAGEM DE CNH (Compliance)
+            // =================================================================================
+            const tipoVeiculo = veiculo.tipoVeiculo?.toUpperCase() || '';
+            const cnhCategoria = usuario.cnhCategoria?.toUpperCase() || '';
+
+            // Define quais veículos são "pesados"
+            const exigeCategoriaPesada = ['CAMINHAO', 'TRUCK', 'CARRETA', 'MUNCK', 'ONIBUS'].some(t => tipoVeiculo.includes(t));
+            // Define quais categorias permitem dirigir pesados
+            const temCategoriaPesada = ['C', 'D', 'E'].some(c => cnhCategoria.includes(c));
+
+            if (exigeCategoriaPesada && !temCategoriaPesada) {
+                // Apenas loga o aviso para não travar a operação caso o cadastro esteja desatualizado
+                console.warn(`[Compliance] Motorista ${usuario.nome} (CNH ${cnhCategoria}) iniciou jornada em veículo pesado ${veiculo.modelo} (${tipoVeiculo}).`);
+            }
 
             // =================================================================================
             // PASSO 1: VALIDAÇÃO DE KM
@@ -46,10 +86,11 @@ export class JornadaController {
             const transacoes = [];
 
             // =================================================================================
-            // PASSO 2: RESOLUÇÃO DE PENDÊNCIAS
+            // PASSO 2: RESOLUÇÃO DE PENDÊNCIAS (Rendição Automática)
             // =================================================================================
 
             if (jornadaAbertaAnterior) {
+                // Se o veículo estava com jornada aberta por OUTRO motorista, fecha a dele automaticamente
                 transacoes.push(prisma.jornada.update({
                     where: { id: jornadaAbertaAnterior.id },
                     data: {
@@ -60,6 +101,7 @@ export class JornadaController {
                 }));
 
             } else {
+                // Se a última jornada foi fechada pelo sistema (timeout), tenta corrigir o KM final com o atual
                 const ultimaJornadaFechada = await prisma.jornada.findFirst({
                     where: { veiculoId: veiculoId, kmFim: { not: null } },
                     orderBy: { dataFim: 'desc' }
@@ -83,11 +125,12 @@ export class JornadaController {
                 data: {
                     veiculo: { connect: { id: veiculoId } },
                     operador: { connect: { id: operadorId } },
-                    encarregado: { connect: { id: encarregadoId } },
+                    // Se foi aberto por um Encarregado, ele pode estar abrindo para si mesmo ou apenas supervisionando
+                    // Aqui mantemos a lógica original: se encarregadoId vier no body, usa ele.
+                    ...(encarregadoId ? { encarregado: { connect: { id: encarregadoId } } } : {}),
+
                     dataInicio: new Date(),
                     kmInicio: kmInicio,
-
-                    // CORREÇÃO: Forçar null se for undefined
                     observacoes: observacoes ?? null,
                     fotoInicioUrl: fotoInicioUrl ?? null,
                 },
@@ -121,12 +164,15 @@ export class JornadaController {
                 return res.status(403).json({ error: 'Sem permissão para fechar esta jornada.' });
             }
 
+            if (jornada.dataFim) return res.status(400).json({ error: 'Jornada já finalizada.' });
+
             if (kmFim < jornada.kmInicio) {
                 return res.status(400).json({ error: `KM Final (${kmFim}) não pode ser menor que o Inicial (${jornada.kmInicio}).` });
             }
 
             const ultimoKMGlobal = await KmService.getUltimoKMRegistrado(jornada.veiculoId);
 
+            // Verifica se houve lançamentos posteriores que invalidam este KM final
             if (kmFim < ultimoKMGlobal && ultimoKMGlobal > jornada.kmInicio) {
                 return res.status(400).json({
                     error: `Inconsistência: Existe um registro (Abastecimento/Manutenção) com KM ${ultimoKMGlobal} posterior ao início desta jornada.`
@@ -138,8 +184,6 @@ export class JornadaController {
                 data: {
                     dataFim: new Date(),
                     kmFim: kmFim,
-
-                    // CORREÇÃO: Forçar null se for undefined
                     observacoes: observacoes ?? null,
                     fotoFimUrl: fotoFimUrl ?? null,
                 },
