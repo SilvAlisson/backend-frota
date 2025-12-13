@@ -18,15 +18,55 @@ export class AbastecimentoController {
         try {
             const dados = req.body as AbastecimentoData;
 
-            // 1. Verificação de Estado Atual (Auditoria)
+            // Busca veículo para validações inteligentes (Blindagem de Combustível e KM)
+            const veiculo = await prisma.veiculo.findUnique({ where: { id: dados.veiculoId } });
+            if (!veiculo) return res.status(404).json({ error: "Veículo não encontrado." });
+
+            // =================================================================================
+            // 1. BLINDAGEM INTELIGENTE: TIPO DE COMBUSTÍVEL
+            // =================================================================================
+            // Evita que um veículo DIESEL abasteça GASOLINA/ETANOL e vice-versa.
+
+            // Busca detalhes dos produtos selecionados para verificar o tipo
+            const itensComDetalhes = await Promise.all(dados.itens.map(async (item) => {
+                const produto = await prisma.produto.findUnique({ where: { id: item.produtoId } });
+                return { ...item, produto };
+            }));
+
+            // Verifica se há incompatibilidade
+            const combustivelErrado = itensComDetalhes.find(item => {
+                // Se não for combustível (ex: Arla, Aditivo), não precisa bloquear
+                if (item.produto?.tipo !== 'COMBUSTIVEL') return false;
+
+                const nomeProduto = item.produto.nome.toUpperCase();
+                const tipoVeiculo = veiculo.tipoCombustivel; // DIESEL_S10, GASOLINA_COMUM, etc.
+
+                // Regra 1: Veículo Diesel tentando abastecer Gasolina ou Etanol
+                if (tipoVeiculo === 'DIESEL_S10' && (nomeProduto.includes('GASOLINA') || nomeProduto.includes('ETANOL'))) return true;
+
+                // Regra 2: Veículo Gasolina/Flex tentando abastecer Diesel
+                if ((tipoVeiculo === 'GASOLINA_COMUM' || tipoVeiculo === 'ETANOL' || tipoVeiculo === 'GNV') && nomeProduto.includes('DIESEL')) return true;
+
+                return false;
+            });
+
+            if (combustivelErrado) {
+                return res.status(400).json({
+                    error: `Bloqueio de Segurança: Veículo ${veiculo.tipoCombustivel} não pode abastecer ${combustivelErrado.produto?.nome}.`
+                });
+            }
+
+            // =================================================================================
+            // 2. VALIDAÇÃO DE KM (AUDITORIA)
+            // =================================================================================
             const ultimoKM = await KmService.getUltimoKMRegistrado(dados.veiculoId);
 
-            // Apenas alerta, não bloqueia (permite lançamento retroativo)
+            // Apenas alerta, não bloqueia (permite lançamento retroativo em caso de esquecimento)
             if (dados.kmOdometro < ultimoKM) {
                 console.warn(`[Abastecimento] Retroativo: KM informado ${dados.kmOdometro} < Atual ${ultimoKM}. Veículo: ${dados.veiculoId}`);
             }
 
-            // 2. Preparação dos Itens
+            // 3. Preparação dos Itens e Cálculo (SAFE DECIMAL)
             let custoTotalGeral = 0;
             const itensParaCriar = dados.itens.map((item) => {
                 const total = item.quantidade * item.valorPorUnidade;
@@ -35,11 +75,15 @@ export class AbastecimentoController {
                     produtoId: item.produtoId,
                     quantidade: item.quantidade,
                     valorPorUnidade: item.valorPorUnidade,
-                    valorTotal: total,
+                    // CORREÇÃO: Arredondamento para evitar dízimas no banco Decimal(10,2)
+                    valorTotal: Number(total.toFixed(2)),
                 };
             });
 
-            // 3. Transação ACID
+            // Arredonda o total geral da nota para evitar erros de precisão
+            custoTotalGeral = Number(custoTotalGeral.toFixed(2));
+
+            // 4. Transação ACID
             // Garante que o registro seja atômico
             const novoAbastecimento = await prisma.$transaction(async (tx) => {
                 return await tx.abastecimento.create({
@@ -100,7 +144,7 @@ export class AbastecimentoController {
                 ...(limit !== 'all' ? { take: 50 } : {}),
                 orderBy: { dataHora: 'desc' },
                 include: {
-                    // CORREÇÃO: Adicionado 'id: true' para que o frontend consiga vincular os dados corretamente
+                    // Importante: 'id: true' para que o frontend consiga vincular os dados corretamente nos relatórios
                     veiculo: { select: { id: true, placa: true, modelo: true } },
                     operador: { select: { nome: true } },
                     fornecedor: { select: { nome: true } },

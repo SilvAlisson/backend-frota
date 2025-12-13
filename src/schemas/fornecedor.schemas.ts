@@ -10,11 +10,12 @@ export const fornecedorSchema = z.object({
 
         tipo: TipoFornecedorSchema.optional().default('OUTROS'),
 
+        // CORREÇÃO: Regex com mensagem de erro direta (Zod v4 style)
         cnpj: z.union([
             z.string().length(0),
             z.null(),
             z.undefined(),
-            z.string().regex(/^\d{2}\.\d{3}\.\d{3}\/\d{4}-\d{2}$/, { message: "CNPJ inválido" })
+            z.string().regex(/^\d{2}\.\d{3}\.\d{3}\/\d{4}-\d{2}$/, "CNPJ inválido")
         ]).optional().transform(e => e === "" ? null : e),
     })
 });
