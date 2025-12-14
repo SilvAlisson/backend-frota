@@ -34,7 +34,10 @@ export class VeiculoController {
                     ano: dados.ano,
                     tipoCombustivel: dados.tipoCombustivel,
 
-                    // CORREÇÃO: Nullish Coalescing (?? null) para todos opcionais
+                    // CORREÇÃO CRÍTICA: Salvando o status
+                    status: dados.status || 'ATIVO',
+
+                    // Nullish Coalescing para opcionais
                     capacidadeTanque: dados.capacidadeTanque ?? null,
                     tipoVeiculo: dados.tipoVeiculo ?? null,
                     vencimentoCiv: dados.vencimentoCiv ?? null,
@@ -104,7 +107,9 @@ export class VeiculoController {
                     ano: dados.ano,
                     tipoCombustivel: dados.tipoCombustivel,
 
-                    // CORREÇÃO: Nullish Coalescing (?? null) aqui também
+                    // CORREÇÃO CRÍTICA: Atualizando o status
+                    status: dados.status,
+
                     capacidadeTanque: dados.capacidadeTanque ?? null,
                     tipoVeiculo: dados.tipoVeiculo ?? null,
                     vencimentoCiv: dados.vencimentoCiv ?? null,
