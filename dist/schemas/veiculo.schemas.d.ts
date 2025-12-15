@@ -12,6 +12,11 @@ export declare const veiculoSchema: z.ZodObject<{
             GNV: "GNV";
         }>>;
         capacidadeTanque: z.ZodNullable<z.ZodOptional<z.ZodCoercedNumber<unknown>>>;
+        status: z.ZodDefault<z.ZodOptional<z.ZodEnum<{
+            ATIVO: "ATIVO";
+            EM_MANUTENCAO: "EM_MANUTENCAO";
+            INATIVO: "INATIVO";
+        }>>>;
         vencimentoCiv: z.ZodNullable<z.ZodOptional<z.ZodCoercedDate<unknown>>>;
         vencimentoCipp: z.ZodNullable<z.ZodOptional<z.ZodCoercedDate<unknown>>>;
     }, z.core.$strip>;

@@ -9,11 +9,12 @@ exports.fornecedorSchema = zod_1.z.object({
     body: zod_1.z.object({
         nome: zod_1.z.string({ error: "Nome é obrigatório" }).min(2),
         tipo: TipoFornecedorSchema.optional().default('OUTROS'),
+        // CORREÇÃO: Regex com mensagem de erro direta (Zod v4 style)
         cnpj: zod_1.z.union([
             zod_1.z.string().length(0),
             zod_1.z.null(),
             zod_1.z.undefined(),
-            zod_1.z.string().regex(/^\d{2}\.\d{3}\.\d{3}\/\d{4}-\d{2}$/, { message: "CNPJ inválido" })
+            zod_1.z.string().regex(/^\d{2}\.\d{3}\.\d{3}\/\d{4}-\d{2}$/, "CNPJ inválido")
         ]).optional().transform(e => e === "" ? null : e),
     })
 });

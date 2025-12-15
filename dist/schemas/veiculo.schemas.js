@@ -17,6 +17,8 @@ exports.veiculoSchema = zod_1.z.object({
             error: "Combustível inválido"
         }).default('DIESEL_S10'),
         capacidadeTanque: zod_1.z.coerce.number().positive().optional().nullable(),
+        // NOVO: Status para Dashboard Inteligente
+        status: zod_1.z.enum(['ATIVO', 'EM_MANUTENCAO', 'INATIVO']).optional().default('ATIVO'),
         vencimentoCiv: zod_1.z.coerce.date().optional().nullable(),
         vencimentoCipp: zod_1.z.coerce.date().optional().nullable(),
     })
