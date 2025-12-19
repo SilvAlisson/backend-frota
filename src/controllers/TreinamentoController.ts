@@ -4,7 +4,7 @@ import { AuthenticatedRequest } from '../middleware/auth';
 import { z } from 'zod';
 import { createTreinamentoSchema, importTreinamentosSchema } from '../schemas/treinamentos.schemas';
 
-// Extração de Tipos
+// Extração de Tipos (Zod garante que são tipos compatíveis com o que definimos)
 type CreateTreinamentoData = z.infer<typeof createTreinamentoSchema>['body'];
 type ImportTreinamentosData = z.infer<typeof importTreinamentosSchema>['body'];
 
@@ -29,14 +29,17 @@ export class TreinamentoController {
 
             const treinamento = await prisma.treinamento.create({
                 data: {
+                    // Usamos connect para garantir a integridade da relação
                     user: { connect: { id: userId } },
                     nome,
-                    dataRealizacao,
-                    descricao: descricao ?? null,
+                    dataRealizacao, // Já vem como Date do Zod (coerce)
+                    // Fallbacks explícitos para evitar o erro de tipagem {} | null
+                    descricao: (descricao as string) ?? null,
                     dataVencimento: dataVencimento ?? null,
-                    comprovanteUrl: comprovanteUrl ?? null
+                    comprovanteUrl: (comprovanteUrl as string) ?? null
                 }
             });
+
             res.status(201).json(treinamento);
         } catch (error) {
             next(error);
@@ -53,15 +56,15 @@ export class TreinamentoController {
 
             const { userId, treinamentos } = req.body as ImportTreinamentosData;
 
-            // createMany é otimizado para inserções em lote
+            // createMany é performático, mas exige que passemos o userId escalar diretamente
             const resultado = await prisma.treinamento.createMany({
                 data: treinamentos.map(t => ({
                     userId,
                     nome: t.nome,
                     dataRealizacao: t.dataRealizacao,
-                    descricao: t.descricao ?? null,
+                    descricao: (t.descricao as string) ?? null,
                     dataVencimento: t.dataVencimento ?? null,
-                    comprovanteUrl: null
+                    comprovanteUrl: null // Importações em massa geralmente não trazem arquivos
                 }))
             });
 
@@ -88,6 +91,7 @@ export class TreinamentoController {
                 where: { userId },
                 orderBy: { dataRealizacao: 'desc' }
             });
+
             res.json(treinamentos);
         } catch (error) {
             next(error);

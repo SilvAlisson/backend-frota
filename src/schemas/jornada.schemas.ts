@@ -6,7 +6,7 @@ export const iniciarJornadaSchema = z.object({
         veiculoId: z.string({ error: "Veículo obrigatório" }).min(1, { error: "Veículo obrigatório" }),
 
         // Se for enviado manualmente 
-        encarregadoId: z.string({ error: "Encarregado obrigatório" }).min(1, { error: "Encarregado obrigatório" }).optional(),
+        encarregadoId: z.string({ error: "Encarregado obrigatório" }).min(1, { error: "Encarregado obrigatório" }),
 
         kmInicio: z.coerce.number({ error: "KM inválido" })
             .positive({ error: "KM deve ser positivo" }),
