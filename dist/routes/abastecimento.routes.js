@@ -6,9 +6,11 @@ const auth_1 = require("../middleware/auth");
 const validate_1 = require("../middleware/validate");
 const operacao_schemas_1 = require("../schemas/operacao.schemas");
 const router = (0, express_1.Router)();
+const abastecimentoController = new AbastecimentoController_1.AbastecimentoController();
 router.use(auth_1.authenticateToken);
-router.post('/', (0, validate_1.validate)(operacao_schemas_1.abastecimentoSchema), AbastecimentoController_1.AbastecimentoController.create);
-router.get('/recentes', AbastecimentoController_1.AbastecimentoController.listRecent);
-router.delete('/:id', AbastecimentoController_1.AbastecimentoController.delete);
+// 2. Usamos a instância nas rotas:
+router.post('/', (0, validate_1.validate)(operacao_schemas_1.abastecimentoSchema), abastecimentoController.create);
+router.get('/recentes', abastecimentoController.listRecent);
+router.delete('/:id', abastecimentoController.delete);
 exports.default = router;
 //# sourceMappingURL=abastecimento.routes.js.map

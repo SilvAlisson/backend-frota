@@ -1,7 +1,7 @@
 export declare class JornadaService {
     /**
-     * Verifica todas as jornadas abertas e fecha as que excederam 17h.
-     * Deve ser chamado por um Cron Job ou Trigger.
+     * Verifica todas as jornadas abertas há mais de 17h e fecha automaticamente.
+     * Otimizado para executar diretamente no Banco de Dados (sem loop em memória).
      */
     static fecharJornadasVencidas(): Promise<void>;
 }

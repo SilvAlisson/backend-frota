@@ -11,6 +11,9 @@ export declare const produtoSchema: z.ZodObject<{
             OUTRO: "OUTRO";
         }>;
         unidadeMedida: z.ZodDefault<z.ZodString>;
+        marca: z.ZodPipe<z.ZodNullable<z.ZodOptional<z.ZodString>>, z.ZodTransform<string | null, string | null | undefined>>;
+        codigoBarras: z.ZodPipe<z.ZodNullable<z.ZodOptional<z.ZodString>>, z.ZodTransform<string | null, string | null | undefined>>;
+        estoqueMinimo: z.ZodDefault<z.ZodOptional<z.ZodCoercedNumber<unknown>>>;
     }, z.core.$strip>;
 }, z.core.$strip>;
 //# sourceMappingURL=produto.schemas.d.ts.map

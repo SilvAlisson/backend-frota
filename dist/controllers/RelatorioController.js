@@ -5,12 +5,13 @@ const prisma_1 = require("../lib/prisma");
 const KmService_1 = require("../services/KmService");
 const dateUtils_1 = require("../utils/dateUtils");
 class RelatorioController {
-    static async sumario(req, res) {
-        if (req.user?.role !== 'ADMIN' && req.user?.role !== 'ENCARREGADO') {
-            return res.status(403).json({ error: 'Acesso negado' });
-        }
+    sumario = async (req, res, next) => {
         try {
-            // req.query já tipado e convertido para números pelo Zod
+            if (req.user?.role !== 'ADMIN' && req.user?.role !== 'ENCARREGADO') {
+                res.status(403).json({ error: 'Acesso negado' });
+                return;
+            }
+            // req.query já tipado e convertido para números pelo Zod (via middleware)
             const { ano, mes, veiculoId } = req.query;
             const anoNum = ano || new Date().getFullYear();
             const mesNum = mes || new Date().getMonth() + 1;
@@ -70,15 +71,15 @@ class RelatorioController {
             });
         }
         catch (e) {
-            console.error(e);
-            res.status(500).json({ error: 'Erro ao gerar sumário.' });
+            next(e);
         }
-    }
-    static async ranking(req, res) {
-        if (req.user?.role !== 'ADMIN' && req.user?.role !== 'ENCARREGADO') {
-            return res.status(403).json({ error: 'Acesso negado' });
-        }
+    };
+    ranking = async (req, res, next) => {
         try {
+            if (req.user?.role !== 'ADMIN' && req.user?.role !== 'ENCARREGADO') {
+                res.status(403).json({ error: 'Acesso negado' });
+                return;
+            }
             const { ano, mes } = req.query;
             const anoNum = ano || new Date().getFullYear();
             const mesNum = mes || new Date().getMonth() + 1;
@@ -129,14 +130,15 @@ class RelatorioController {
             res.json(ranking);
         }
         catch (error) {
-            res.status(500).json({ error: 'Erro ao gerar ranking.' });
+            next(error);
         }
-    }
-    static async alertas(req, res) {
-        if (!['ADMIN', 'ENCARREGADO', 'RH'].includes(req.user?.role || '')) {
-            return res.status(403).json({ error: 'Acesso negado' });
-        }
+    };
+    alertas = async (req, res, next) => {
         try {
+            if (!['ADMIN', 'ENCARREGADO', 'RH'].includes(req.user?.role || '')) {
+                res.status(403).json({ error: 'Acesso negado' });
+                return;
+            }
             const alertas = [];
             const hoje = new Date();
             const dataLimite = (0, dateUtils_1.addDays)(hoje, 30);
@@ -176,9 +178,9 @@ class RelatorioController {
             res.json(alertas);
         }
         catch (e) {
-            res.status(500).json({ error: 'Erro ao buscar alertas.' });
+            next(e);
         }
-    }
+    };
 }
 exports.RelatorioController = RelatorioController;
 //# sourceMappingURL=RelatorioController.js.map

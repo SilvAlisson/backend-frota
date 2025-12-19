@@ -4,8 +4,8 @@ export declare const iniciarJornadaSchema: z.ZodObject<{
         veiculoId: z.ZodString;
         encarregadoId: z.ZodString;
         kmInicio: z.ZodCoercedNumber<unknown>;
-        observacoes: z.ZodPipe<z.ZodNullable<z.ZodOptional<z.ZodString>>, z.ZodTransform<string | null | undefined, string | null | undefined>>;
-        fotoInicioUrl: z.ZodPipe<z.ZodNullable<z.ZodOptional<z.ZodString>>, z.ZodTransform<string | null | undefined, string | null | undefined>>;
+        observacoes: z.ZodPipe<z.ZodNullable<z.ZodOptional<z.ZodString>>, z.ZodTransform<string | null, string | null | undefined>>;
+        fotoInicioUrl: z.ZodPipe<z.ZodNullable<z.ZodOptional<z.ZodString>>, z.ZodTransform<string | null, string | null | undefined>>;
     }, z.core.$strip>;
 }, z.core.$strip>;
 export declare const finalizarJornadaSchema: z.ZodObject<{
@@ -14,8 +14,8 @@ export declare const finalizarJornadaSchema: z.ZodObject<{
     }, z.core.$strip>;
     body: z.ZodObject<{
         kmFim: z.ZodCoercedNumber<unknown>;
-        observacoes: z.ZodPipe<z.ZodNullable<z.ZodOptional<z.ZodString>>, z.ZodTransform<string | null | undefined, string | null | undefined>>;
-        fotoFimUrl: z.ZodPipe<z.ZodNullable<z.ZodOptional<z.ZodString>>, z.ZodTransform<string | null | undefined, string | null | undefined>>;
+        observacoes: z.ZodPipe<z.ZodNullable<z.ZodOptional<z.ZodString>>, z.ZodTransform<string | null, string | null | undefined>>;
+        fotoFimUrl: z.ZodPipe<z.ZodNullable<z.ZodOptional<z.ZodString>>, z.ZodTransform<string | null, string | null | undefined>>;
     }, z.core.$strip>;
 }, z.core.$strip>;
 export declare const buscaJornadaSchema: z.ZodObject<{

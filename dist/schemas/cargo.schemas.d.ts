@@ -2,7 +2,7 @@ import { z } from 'zod';
 export declare const cargoSchema: z.ZodObject<{
     body: z.ZodObject<{
         nome: z.ZodString;
-        descricao: z.ZodPipe<z.ZodNullable<z.ZodOptional<z.ZodString>>, z.ZodTransform<string | null | undefined, string | null | undefined>>;
+        descricao: z.ZodPipe<z.ZodNullable<z.ZodOptional<z.ZodString>>, z.ZodTransform<string | null, string | null | undefined>>;
         requisitos: z.ZodOptional<z.ZodArray<z.ZodObject<{
             nome: z.ZodString;
             validadeMeses: z.ZodCoercedNumber<unknown>;

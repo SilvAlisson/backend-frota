@@ -1,10 +1,10 @@
-import { Response } from 'express';
+import { Response, NextFunction } from 'express';
 import { AuthenticatedRequest } from '../middleware/auth';
 export declare class FornecedorController {
-    static create(req: AuthenticatedRequest, res: Response): Promise<Response<any, Record<string, any>> | undefined>;
-    static list(req: AuthenticatedRequest, res: Response): Promise<void>;
-    static getById(req: AuthenticatedRequest, res: Response): Promise<Response<any, Record<string, any>> | undefined>;
-    static update(req: AuthenticatedRequest, res: Response): Promise<Response<any, Record<string, any>> | undefined>;
-    static delete(req: AuthenticatedRequest, res: Response): Promise<Response<any, Record<string, any>> | undefined>;
+    create: (req: AuthenticatedRequest, res: Response, next: NextFunction) => Promise<void>;
+    list: (req: AuthenticatedRequest, res: Response, next: NextFunction) => Promise<void>;
+    getById: (req: AuthenticatedRequest, res: Response, next: NextFunction) => Promise<void>;
+    update: (req: AuthenticatedRequest, res: Response, next: NextFunction) => Promise<void>;
+    delete: (req: AuthenticatedRequest, res: Response, next: NextFunction) => Promise<void>;
 }
 //# sourceMappingURL=FornecedorController.d.ts.map

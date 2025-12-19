@@ -11,6 +11,9 @@ exports.produtoSchema = zod_1.z.object({
             error: "Tipo de produto inválido"
         }),
         unidadeMedida: zod_1.z.string().default('Litro'),
+        marca: zod_1.z.string().optional().nullable().transform(v => v || null),
+        codigoBarras: zod_1.z.string().optional().nullable().transform(v => v || null),
+        estoqueMinimo: zod_1.z.coerce.number().optional().default(0)
     })
 });
 //# sourceMappingURL=produto.schemas.js.map

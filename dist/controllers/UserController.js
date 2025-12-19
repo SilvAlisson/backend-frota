@@ -6,55 +6,56 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.UserController = void 0;
 const prisma_1 = require("../lib/prisma");
 const bcrypt_1 = __importDefault(require("bcrypt"));
-const client_1 = require("@prisma/client");
 class UserController {
-    static async create(req, res) {
-        // Validação de Permissão
-        if (!['ADMIN', 'RH'].includes(req.user?.role || '')) {
-            return res.status(403).json({ error: 'Acesso não autorizado.' });
-        }
+    /**
+     * Cria um novo utilizador.
+     */
+    create = async (req, res, next) => {
         try {
-            // req.body já validado e limpo pelo Zod
+            // 1. Validação de Permissão Básica
+            const currentUserRole = req.user?.role || '';
+            if (!['ADMIN', 'RH'].includes(currentUserRole)) {
+                res.status(403).json({ error: 'Acesso não autorizado.' });
+                return;
+            }
             const dados = req.body;
-            // Bloqueio de segurança: RH não pode criar um ADMIN
-            if (req.user?.role === 'RH' && dados.role === 'ADMIN') {
-                return res.status(403).json({ error: 'RH não pode criar usuários Administradores.' });
+            // 2. Regras de Hierarquia
+            if (currentUserRole === 'RH' && dados.role === 'ADMIN') {
+                res.status(403).json({ error: 'RH não pode criar usuários Administradores.' });
+                return;
             }
-            if (dados.role === 'ADMIN' && req.user?.role !== 'ADMIN') {
-                return res.status(403).json({ error: 'Apenas ADMIN pode criar outro ADMIN.' });
+            if (dados.role === 'ADMIN' && currentUserRole !== 'ADMIN') {
+                res.status(403).json({ error: 'Apenas ADMIN pode criar outro ADMIN.' });
+                return;
             }
+            // 3. Hash da Senha
             const salt = await bcrypt_1.default.genSalt(10);
             const hashedPassword = await bcrypt_1.default.hash(dados.password, salt);
+            // 4. Criação no Banco
             const novoUser = await prisma_1.prisma.user.create({
                 data: {
                     nome: dados.nome,
                     email: dados.email,
                     password: hashedPassword,
-                    // Nullish coalescing (?? null) para todos os opcionais
-                    matricula: dados.matricula ?? null,
                     role: dados.role || 'OPERADOR',
+                    matricula: dados.matricula ?? null,
                     fotoUrl: dados.fotoUrl ?? null,
                     cargoId: dados.cargoId ?? null,
                     cnhNumero: dados.cnhNumero ?? null,
                     cnhCategoria: dados.cnhCategoria ?? null,
-                    // Conversão de data (string -> Date) apenas se existir
                     cnhValidade: dados.cnhValidade ? new Date(dados.cnhValidade) : null,
                     dataAdmissao: dados.dataAdmissao ? new Date(dados.dataAdmissao) : null,
                 },
             });
-            // Remove a senha do retorno
+            // 5. Retorno Seguro (Sem senha)
             const { password: _, ...userSemSenha } = novoUser;
             res.status(201).json(userSemSenha);
         }
         catch (error) {
-            if (error.code === 'P2002') {
-                return res.status(409).json({ error: `Já existe um usuário com este email, matrícula ou token.` });
-            }
-            console.error("Erro ao criar usuário:", error);
-            res.status(500).json({ error: 'Erro ao registrar usuário' });
+            next(error);
         }
-    }
-    static async list(req, res) {
+    };
+    list = async (req, res, next) => {
         try {
             const users = await prisma_1.prisma.user.findMany({
                 select: {
@@ -71,49 +72,67 @@ class UserController {
             res.json(users);
         }
         catch (error) {
-            res.status(500).json({ error: 'Erro ao listar usuários' });
+            next(error);
         }
-    }
-    static async getById(req, res) {
-        if (!['ADMIN', 'RH'].includes(req.user?.role || ''))
-            return res.status(403).json({ error: 'Acesso negado.' });
-        const id = req.params.id;
-        if (!id)
-            return res.status(400).json({ error: 'ID não fornecido.' });
+    };
+    getById = async (req, res, next) => {
         try {
+            if (!['ADMIN', 'RH'].includes(req.user?.role || '')) {
+                res.status(403).json({ error: 'Acesso negado.' });
+                return;
+            }
+            const { id } = req.params;
+            // CORREÇÃO: Verificação explícita para o TypeScript
+            if (!id) {
+                res.status(400).json({ error: 'ID não fornecido.' });
+                return;
+            }
             const user = await prisma_1.prisma.user.findUnique({
-                where: { id },
+                where: { id }, // Agora 'id' é garantidamente string
                 include: { cargo: true }
             });
-            if (!user)
-                return res.status(404).json({ error: 'Usuário não encontrado' });
+            if (!user) {
+                res.status(404).json({ error: 'Usuário não encontrado' });
+                return;
+            }
             const { password, ...userSafe } = user;
             res.json(userSafe);
         }
         catch (error) {
-            res.status(500).json({ error: 'Erro ao buscar usuário' });
+            next(error);
         }
-    }
-    static async update(req, res) {
-        if (!['ADMIN', 'RH'].includes(req.user?.role || ''))
-            return res.status(403).json({ error: 'Acesso negado.' });
-        const id = req.params.id;
-        if (!id)
-            return res.status(400).json({ error: 'ID não fornecido.' });
+    };
+    update = async (req, res, next) => {
         try {
+            const currentUserRole = req.user?.role || '';
+            if (!['ADMIN', 'RH'].includes(currentUserRole)) {
+                res.status(403).json({ error: 'Acesso negado.' });
+                return;
+            }
+            const { id } = req.params;
+            // CORREÇÃO: Verificação explícita
+            if (!id) {
+                res.status(400).json({ error: 'ID não fornecido.' });
+                return;
+            }
             const { nome, email, matricula, role, password, cargoId, cnhNumero, cnhCategoria, cnhValidade, dataAdmissao, fotoUrl } = req.body;
-            // Segurança: RH não mexe em ADMIN
-            if (req.user?.role === 'RH') {
+            // Segurança: RH vs ADMIN
+            if (currentUserRole === 'RH') {
                 const alvo = await prisma_1.prisma.user.findUnique({ where: { id }, select: { role: true } });
                 if (alvo?.role === 'ADMIN') {
-                    return res.status(403).json({ error: 'RH não pode alterar dados de um Administrador.' });
+                    res.status(403).json({ error: 'RH não pode alterar dados de um Administrador.' });
+                    return;
                 }
                 if (role === 'ADMIN') {
-                    return res.status(403).json({ error: 'RH não pode promover usuários a Administrador.' });
+                    res.status(403).json({ error: 'RH não pode promover usuários a Administrador.' });
+                    return;
                 }
             }
-            const data = {
-                nome, email, role,
+            // Preparar objeto de update
+            const dataToUpdate = {
+                nome,
+                email,
+                role,
                 matricula: matricula || null,
                 fotoUrl: fotoUrl || null,
                 cargoId: cargoId || null,
@@ -122,52 +141,52 @@ class UserController {
                 cnhValidade: cnhValidade ? new Date(cnhValidade) : null,
                 dataAdmissao: dataAdmissao ? new Date(dataAdmissao) : null
             };
-            // Remove campos undefined para não sobrescrever com null se não forem enviados
-            Object.keys(data).forEach(key => data[key] === undefined && delete data[key]);
+            Object.keys(dataToUpdate).forEach(key => dataToUpdate[key] === undefined && delete dataToUpdate[key]);
             if (password && password.trim() !== '') {
-                const salt = await bcrypt_1.default.genSalt(10);
-                data.password = await bcrypt_1.default.hash(password, 10);
+                dataToUpdate.password = await bcrypt_1.default.hash(password, 10);
             }
             const updated = await prisma_1.prisma.user.update({
                 where: { id },
-                data,
+                data: dataToUpdate,
                 select: { id: true, nome: true, email: true, role: true, matricula: true, fotoUrl: true }
             });
             res.json(updated);
         }
         catch (error) {
-            if (error instanceof client_1.Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
-                return res.status(409).json({ error: 'Email ou matrícula já existentes.' });
-            }
-            console.error(error);
-            res.status(500).json({ error: 'Erro ao atualizar usuário' });
+            next(error);
         }
-    }
-    static async delete(req, res) {
-        if (!['ADMIN', 'RH'].includes(req.user?.role || ''))
-            return res.status(403).json({ error: 'Acesso negado.' });
-        const id = req.params.id;
-        if (!id)
-            return res.status(400).json({ error: 'ID não fornecido.' });
-        if (req.user?.userId === id)
-            return res.status(400).json({ error: 'Não pode remover a si mesmo.' });
+    };
+    delete = async (req, res, next) => {
         try {
-            if (req.user?.role === 'RH') {
+            const currentUserRole = req.user?.role || '';
+            if (!['ADMIN', 'RH'].includes(currentUserRole)) {
+                res.status(403).json({ error: 'Acesso negado.' });
+                return;
+            }
+            const { id } = req.params;
+            // CORREÇÃO: Verificação explícita
+            if (!id) {
+                res.status(400).json({ error: 'ID não fornecido.' });
+                return;
+            }
+            if (req.user?.userId === id) {
+                res.status(400).json({ error: 'Não pode remover a si mesmo.' });
+                return;
+            }
+            if (currentUserRole === 'RH') {
                 const alvo = await prisma_1.prisma.user.findUnique({ where: { id }, select: { role: true } });
                 if (alvo?.role === 'ADMIN') {
-                    return res.status(403).json({ error: 'RH não pode remover um Administrador.' });
+                    res.status(403).json({ error: 'RH não pode remover um Administrador.' });
+                    return;
                 }
             }
             await prisma_1.prisma.user.delete({ where: { id } });
-            res.json({ message: 'Usuário removido' });
+            res.json({ message: 'Usuário removido com sucesso' });
         }
         catch (error) {
-            if (error instanceof client_1.Prisma.PrismaClientKnownRequestError && (error.code === 'P2003' || error.code === 'P2014')) {
-                return res.status(409).json({ error: 'Não é possível remover: Usuário possui registos vinculados.' });
-            }
-            res.status(500).json({ error: 'Erro ao remover usuário.' });
+            next(error);
         }
-    }
+    };
 }
 exports.UserController = UserController;
 //# sourceMappingURL=UserController.js.map

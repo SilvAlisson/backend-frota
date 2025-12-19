@@ -9,8 +9,7 @@ const abastecimentoController = new AbastecimentoController();
 
 router.use(authenticateToken);
 
-// 2. Usamos a instância nas rotas:
-
+// Rotas de Criação e Listagem
 router.post('/',
     validate(abastecimentoSchema),
     abastecimentoController.create
@@ -18,6 +17,14 @@ router.post('/',
 
 router.get('/recentes', abastecimentoController.listRecent);
 
+// --- ROTAS PARA EDIÇÃO ---
+router.get('/:id', abastecimentoController.getById);
+router.put('/:id', 
+    validate(abastecimentoSchema), 
+    abastecimentoController.update
+);
+
+// Rota de Remoção
 router.delete('/:id', abastecimentoController.delete);
 
 export default router;

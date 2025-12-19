@@ -2,13 +2,13 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.ProdutoController = void 0;
 const prisma_1 = require("../lib/prisma");
-const client_1 = require("@prisma/client");
 class ProdutoController {
-    static async create(req, res) {
-        if (req.user?.role !== 'ADMIN')
-            return res.status(403).json({ error: 'Acesso negado.' });
+    create = async (req, res, next) => {
         try {
-            // req.body já validado, tipado e com defaults aplicados (unidadeMedida = Litro)
+            if (req.user?.role !== 'ADMIN') {
+                res.status(403).json({ error: 'Acesso negado.' });
+                return;
+            }
             const { nome, tipo, unidadeMedida } = req.body;
             const produto = await prisma_1.prisma.produto.create({
                 data: {
@@ -19,74 +19,78 @@ class ProdutoController {
             });
             res.status(201).json(produto);
         }
-        catch (e) {
-            if (e instanceof client_1.Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
-                return res.status(409).json({ error: 'Produto com este nome já existe.' });
-            }
-            console.error("Erro ao criar produto:", e);
-            res.status(500).json({ error: 'Erro ao criar produto' });
+        catch (error) {
+            next(error); // Middleware trata P2002 (Produto duplicado)
         }
-    }
-    static async list(req, res) {
+    };
+    list = async (req, res, next) => {
         try {
             const produtos = await prisma_1.prisma.produto.findMany({ orderBy: { nome: 'asc' } });
             res.json(produtos);
         }
-        catch (e) {
-            res.status(500).json({ error: 'Erro ao listar produtos' });
+        catch (error) {
+            next(error);
         }
-    }
-    static async getById(req, res) {
-        const { id } = req.params;
-        if (!id)
-            return res.status(400).json({ error: 'ID inválido' });
+    };
+    getById = async (req, res, next) => {
         try {
+            const { id } = req.params;
+            if (!id) {
+                res.status(400).json({ error: 'ID inválido' });
+                return;
+            }
             const produto = await prisma_1.prisma.produto.findUnique({ where: { id } });
-            produto ? res.json(produto) : res.status(404).json({ error: 'Não encontrado' });
+            if (!produto) {
+                res.status(404).json({ error: 'Não encontrado' });
+                return;
+            }
+            res.json(produto);
         }
-        catch (e) {
-            res.status(500).json({ error: 'Erro interno' });
+        catch (error) {
+            next(error);
         }
-    }
-    static async update(req, res) {
-        if (req.user?.role !== 'ADMIN')
-            return res.status(403).json({ error: 'Acesso negado' });
-        const { id } = req.params;
-        if (!id)
-            return res.status(400).json({ error: 'ID inválido' });
+    };
+    update = async (req, res, next) => {
         try {
-            // O Zod garante que o Tipo é válido se for enviado
+            if (req.user?.role !== 'ADMIN') {
+                res.status(403).json({ error: 'Acesso negado' });
+                return;
+            }
+            const { id } = req.params;
+            if (!id) {
+                res.status(400).json({ error: 'ID inválido' });
+                return;
+            }
             const { nome, tipo, unidadeMedida } = req.body;
+            // Se o ID não existir, o Prisma lança P2025 -> middleware converte em 404
             const updated = await prisma_1.prisma.produto.update({
                 where: { id },
                 data: { nome, tipo, unidadeMedida }
             });
             res.json(updated);
         }
-        catch (e) {
-            if (e instanceof client_1.Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
-                return res.status(409).json({ error: 'Nome de produto já existe.' });
-            }
-            res.status(500).json({ error: 'Erro ao atualizar' });
+        catch (error) {
+            next(error);
         }
-    }
-    static async delete(req, res) {
-        if (req.user?.role !== 'ADMIN')
-            return res.status(403).json({ error: 'Acesso negado' });
-        const { id } = req.params;
-        if (!id)
-            return res.status(400).json({ error: 'ID inválido' });
+    };
+    delete = async (req, res, next) => {
         try {
+            if (req.user?.role !== 'ADMIN') {
+                res.status(403).json({ error: 'Acesso negado' });
+                return;
+            }
+            const { id } = req.params;
+            if (!id) {
+                res.status(400).json({ error: 'ID inválido' });
+                return;
+            }
             await prisma_1.prisma.produto.delete({ where: { id } });
             res.json({ message: 'Removido com sucesso' });
         }
-        catch (e) {
-            if (e instanceof client_1.Prisma.PrismaClientKnownRequestError && (e.code === 'P2003' || e.code === 'P2014')) {
-                return res.status(409).json({ error: 'Produto em uso (histórico de abastecimento/manutenção).' });
-            }
-            res.status(500).json({ error: 'Erro ao remover.' });
+        catch (error) {
+            next(error); // Middleware trata P2003 (Produto em uso em histórico)
         }
-    }
+    };
 }
 exports.ProdutoController = ProdutoController;
 //# sourceMappingURL=ProdutoController.js.map

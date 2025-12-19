@@ -1,12 +1,12 @@
-import { Response } from 'express';
+import { Response, NextFunction } from 'express';
 import { AuthenticatedRequest } from '../middleware/auth';
 export declare class JornadaController {
-    static iniciar(req: AuthenticatedRequest, res: Response): Promise<Response<any, Record<string, any>> | undefined>;
-    static finalizar(req: AuthenticatedRequest, res: Response): Promise<Response<any, Record<string, any>> | undefined>;
-    static listarAbertas(req: AuthenticatedRequest, res: Response): Promise<Response<any, Record<string, any>> | undefined>;
-    static listarMinhasAbertas(req: AuthenticatedRequest, res: Response): Promise<Response<any, Record<string, any>> | undefined>;
-    static listarHistorico(req: AuthenticatedRequest, res: Response): Promise<Response<any, Record<string, any>> | undefined>;
-    static verificarTimeouts(req: AuthenticatedRequest, res: Response): Promise<void>;
-    static delete(req: AuthenticatedRequest, res: Response): Promise<Response<any, Record<string, any>> | undefined>;
+    iniciar: (req: AuthenticatedRequest, res: Response, next: NextFunction) => Promise<void>;
+    finalizar: (req: AuthenticatedRequest, res: Response, next: NextFunction) => Promise<void>;
+    listarAbertas: (req: AuthenticatedRequest, res: Response, next: NextFunction) => Promise<void>;
+    listarMinhasAbertas: (req: AuthenticatedRequest, res: Response, next: NextFunction) => Promise<void>;
+    listarHistorico: (req: AuthenticatedRequest, res: Response, next: NextFunction) => Promise<void>;
+    verificarTimeouts: (req: AuthenticatedRequest, res: Response, next: NextFunction) => Promise<void>;
+    delete: (req: AuthenticatedRequest, res: Response, next: NextFunction) => Promise<void>;
 }
 //# sourceMappingURL=JornadaController.d.ts.map

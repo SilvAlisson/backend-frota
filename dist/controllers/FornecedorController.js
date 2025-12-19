@@ -2,60 +2,67 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.FornecedorController = void 0;
 const prisma_1 = require("../lib/prisma");
-const client_1 = require("@prisma/client");
 class FornecedorController {
-    static async create(req, res) {
-        if (req.user?.role !== 'ADMIN')
-            return res.status(403).json({ error: 'Acesso negado' });
+    create = async (req, res, next) => {
         try {
+            if (req.user?.role !== 'ADMIN') {
+                res.status(403).json({ error: 'Acesso negado' });
+                return;
+            }
             const { nome, cnpj, tipo } = req.body;
             const fornecedor = await prisma_1.prisma.fornecedor.create({
                 data: {
                     nome,
-                    // CORREÇÃO: Garante que se for undefined, envia null
                     cnpj: cnpj ?? null,
                     tipo
                 }
             });
             res.status(201).json(fornecedor);
         }
-        catch (e) {
-            if (e instanceof client_1.Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
-                return res.status(409).json({ error: 'Fornecedor já existe (Nome ou CNPJ duplicado).' });
-            }
-            console.error("Erro ao criar fornecedor:", e);
-            res.status(500).json({ error: 'Erro ao criar fornecedor' });
+        catch (error) {
+            next(error); // Middleware trata P2002 (nome/CNPJ duplicado)
         }
-    }
-    static async list(req, res) {
+    };
+    list = async (req, res, next) => {
         try {
             const list = await prisma_1.prisma.fornecedor.findMany({ orderBy: { nome: 'asc' } });
             res.json(list);
         }
-        catch (e) {
-            res.status(500).json({ error: 'Erro ao listar' });
+        catch (error) {
+            next(error);
         }
-    }
-    static async getById(req, res) {
-        const { id } = req.params;
-        if (!id)
-            return res.status(400).json({ error: 'ID inválido' });
+    };
+    getById = async (req, res, next) => {
         try {
+            const { id } = req.params;
+            if (!id) {
+                res.status(400).json({ error: 'ID inválido' });
+                return;
+            }
             const f = await prisma_1.prisma.fornecedor.findUnique({ where: { id } });
-            f ? res.json(f) : res.status(404).json({ error: 'Não encontrado' });
+            if (!f) {
+                res.status(404).json({ error: 'Não encontrado' });
+                return;
+            }
+            res.json(f);
         }
-        catch (e) {
-            res.status(500).json({ error: 'Erro interno' });
+        catch (error) {
+            next(error);
         }
-    }
-    static async update(req, res) {
-        if (req.user?.role !== 'ADMIN')
-            return res.status(403).json({ error: 'Acesso negado' });
-        const { id } = req.params;
-        if (!id)
-            return res.status(400).json({ error: 'ID inválido' });
+    };
+    update = async (req, res, next) => {
         try {
+            if (req.user?.role !== 'ADMIN') {
+                res.status(403).json({ error: 'Acesso negado' });
+                return;
+            }
+            const { id } = req.params;
+            if (!id) {
+                res.status(400).json({ error: 'ID inválido' });
+                return;
+            }
             const { nome, cnpj, tipo } = req.body;
+            // Se o ID não existir, o Prisma lança erro P2025, que o middleware converte em 404
             const updated = await prisma_1.prisma.fornecedor.update({
                 where: { id },
                 data: {
@@ -66,28 +73,28 @@ class FornecedorController {
             });
             res.json(updated);
         }
-        catch (e) {
-            console.error("Erro ao atualizar fornecedor:", e);
-            res.status(500).json({ error: 'Erro ao atualizar' });
+        catch (error) {
+            next(error);
         }
-    }
-    static async delete(req, res) {
-        if (req.user?.role !== 'ADMIN')
-            return res.status(403).json({ error: 'Acesso negado' });
-        const { id } = req.params;
-        if (!id)
-            return res.status(400).json({ error: 'ID inválido' });
+    };
+    delete = async (req, res, next) => {
         try {
-            await prisma_1.prisma.fornecedor.delete({ where: { id } });
-            res.json({ message: 'Removido' });
-        }
-        catch (e) {
-            if (e instanceof client_1.Prisma.PrismaClientKnownRequestError && e.code === 'P2003') {
-                return res.status(409).json({ error: 'Não é possível remover: Fornecedor em uso por abastecimentos ou OS.' });
+            if (req.user?.role !== 'ADMIN') {
+                res.status(403).json({ error: 'Acesso negado' });
+                return;
             }
-            res.status(500).json({ error: 'Erro ao remover.' });
+            const { id } = req.params;
+            if (!id) {
+                res.status(400).json({ error: 'ID inválido' });
+                return;
+            }
+            await prisma_1.prisma.fornecedor.delete({ where: { id } });
+            res.json({ message: 'Removido com sucesso' });
         }
-    }
+        catch (error) {
+            next(error); // Middleware trata P2003 (FK violation)
+        }
+    };
 }
 exports.FornecedorController = FornecedorController;
 //# sourceMappingURL=FornecedorController.js.map

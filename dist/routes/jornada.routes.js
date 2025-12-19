@@ -6,17 +6,19 @@ const auth_1 = require("../middleware/auth");
 const validate_1 = require("../middleware/validate");
 const jornada_schemas_1 = require("../schemas/jornada.schemas");
 const router = (0, express_1.Router)();
+const jornadaController = new JornadaController_1.JornadaController();
 router.use(auth_1.authenticateToken);
 // Iniciar (Valida Body)
-router.post('/iniciar', (0, validate_1.validate)(jornada_schemas_1.iniciarJornadaSchema), JornadaController_1.JornadaController.iniciar);
+// <--- 2. Uso da instância
+router.post('/iniciar', (0, validate_1.validate)(jornada_schemas_1.iniciarJornadaSchema), jornadaController.iniciar);
 // Finalizar (Valida ID no Params + Body)
-router.put('/finalizar/:id', (0, validate_1.validate)(jornada_schemas_1.finalizarJornadaSchema), JornadaController_1.JornadaController.finalizar);
+router.put('/finalizar/:id', (0, validate_1.validate)(jornada_schemas_1.finalizarJornadaSchema), jornadaController.finalizar);
 // Buscas (Valida Query Params)
-router.get('/historico', (0, validate_1.validate)(jornada_schemas_1.buscaJornadaSchema), JornadaController_1.JornadaController.listarHistorico);
+router.get('/historico', (0, validate_1.validate)(jornada_schemas_1.buscaJornadaSchema), jornadaController.listarHistorico);
 // Rotas sem validação complexa (apenas autenticação)
-router.get('/abertas', JornadaController_1.JornadaController.listarAbertas);
-router.get('/minhas-abertas-operador', JornadaController_1.JornadaController.listarMinhasAbertas);
-router.post('/verificar-timeouts', JornadaController_1.JornadaController.verificarTimeouts);
-router.delete('/:id', JornadaController_1.JornadaController.delete);
+router.get('/abertas', jornadaController.listarAbertas);
+router.get('/minhas-abertas-operador', jornadaController.listarMinhasAbertas);
+router.post('/verificar-timeouts', jornadaController.verificarTimeouts);
+router.delete('/:id', jornadaController.delete);
 exports.default = router;
 //# sourceMappingURL=jornada.routes.js.map

@@ -3,8 +3,9 @@ export declare const veiculoSchema: z.ZodObject<{
     body: z.ZodObject<{
         placa: z.ZodPipe<z.ZodString, z.ZodTransform<string, string>>;
         modelo: z.ZodString;
+        marca: z.ZodPipe<z.ZodNullable<z.ZodOptional<z.ZodString>>, z.ZodTransform<string | null, string | null | undefined>>;
         ano: z.ZodCoercedNumber<unknown>;
-        tipoVeiculo: z.ZodPipe<z.ZodNullable<z.ZodOptional<z.ZodString>>, z.ZodTransform<string | null | undefined, string | null | undefined>>;
+        tipoVeiculo: z.ZodPipe<z.ZodNullable<z.ZodOptional<z.ZodString>>, z.ZodTransform<string | null, string | null | undefined>>;
         tipoCombustivel: z.ZodDefault<z.ZodEnum<{
             DIESEL_S10: "DIESEL_S10";
             GASOLINA_COMUM: "GASOLINA_COMUM";
@@ -19,6 +20,7 @@ export declare const veiculoSchema: z.ZodObject<{
         }>>>;
         vencimentoCiv: z.ZodNullable<z.ZodOptional<z.ZodCoercedDate<unknown>>>;
         vencimentoCipp: z.ZodNullable<z.ZodOptional<z.ZodCoercedDate<unknown>>>;
+        kmCadastro: z.ZodDefault<z.ZodOptional<z.ZodCoercedNumber<unknown>>>;
     }, z.core.$strip>;
 }, z.core.$strip>;
 //# sourceMappingURL=veiculo.schemas.d.ts.map

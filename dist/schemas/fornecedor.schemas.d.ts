@@ -9,7 +9,7 @@ export declare const fornecedorSchema: z.ZodObject<{
             SEGURADORA: "SEGURADORA";
             OUTROS: "OUTROS";
         }>>>;
-        cnpj: z.ZodPipe<z.ZodOptional<z.ZodUnion<readonly [z.ZodString, z.ZodNull, z.ZodUndefined, z.ZodString]>>, z.ZodTransform<string | null | undefined, string | null | undefined>>;
+        cnpj: z.ZodPipe<z.ZodNullable<z.ZodOptional<z.ZodString>>, z.ZodTransform<string | null, string | null | undefined>>;
     }, z.core.$strip>;
 }, z.core.$strip>;
 //# sourceMappingURL=fornecedor.schemas.d.ts.map

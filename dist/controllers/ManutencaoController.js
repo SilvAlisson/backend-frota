@@ -3,25 +3,27 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.ManutencaoController = void 0;
 const prisma_1 = require("../lib/prisma");
 const KmService_1 = require("../services/KmService");
+const client_1 = require("@prisma/client");
 class ManutencaoController {
-    static async create(req, res) {
-        if (req.user?.role !== 'ADMIN' && req.user?.role !== 'ENCARREGADO') {
-            return res.status(403).json({ error: 'Acesso negado.' });
-        }
-        const encarregadoId = req.user?.userId;
-        if (!encarregadoId)
-            return res.status(401).json({ error: 'Auth error' });
+    create = async (req, res, next) => {
         try {
+            if (req.user?.role !== 'ADMIN' && req.user?.role !== 'ENCARREGADO') {
+                res.status(403).json({ error: 'Acesso negado.' });
+                return;
+            }
+            const encarregadoId = req.user?.userId;
+            if (!encarregadoId) {
+                res.status(401).json({ error: 'Auth error' });
+                return;
+            }
             const dados = req.body;
             // =================================================================================
             // 1. INTELIGÊNCIA: ALERTA DE GARANTIA (90 Dias)
             // =================================================================================
-            // Verifica se algum item já foi trocado recentemente neste veículo
             if (dados.veiculoId) {
                 const diasGarantia = 90;
                 const dataLimite = new Date();
                 dataLimite.setDate(dataLimite.getDate() - diasGarantia);
-                // Usamos loop for..of para permitir await sequencial (ou Promise.all)
                 for (const item of dados.itens) {
                     const ultimaTroca = await prisma_1.prisma.itemOrdemServico.findFirst({
                         where: {
@@ -35,7 +37,6 @@ class ManutencaoController {
                         include: { ordemServico: true, produto: true }
                     });
                     if (ultimaTroca) {
-                        // Loga o alerta no servidor (futuramente pode retornar um aviso ao frontend)
                         console.warn(`[Manutenção] ALERTA DE GARANTIA: Item "${ultimaTroca.produto.nome}" foi trocado em ${ultimaTroca.ordemServico.data.toLocaleDateString()}. Veículo: ${dados.veiculoId}`);
                     }
                 }
@@ -58,11 +59,9 @@ class ManutencaoController {
                     produtoId: item.produtoId,
                     quantidade: item.quantidade,
                     valorPorUnidade: item.valorPorUnidade,
-                    // CORREÇÃO: Arredondamento para evitar dízimas no banco
                     valorTotal: Number(total.toFixed(2)),
                 };
             });
-            // Arredonda o total geral da OS
             custoTotalGeral = Number(custoTotalGeral.toFixed(2));
             // 4. Transação (Criação)
             const novaOS = await prisma_1.prisma.$transaction(async (tx) => {
@@ -85,23 +84,26 @@ class ManutencaoController {
             res.status(201).json(novaOS);
         }
         catch (error) {
-            console.error("Erro criar OS:", error);
-            res.status(500).json({ error: 'Erro ao registrar manutenção' });
+            next(error);
         }
-    }
-    static async update(req, res) {
-        if (req.user?.role !== 'ADMIN' && req.user?.role !== 'ENCARREGADO') {
-            return res.status(403).json({ error: 'Acesso negado.' });
-        }
-        const { id } = req.params;
-        if (!id)
-            return res.status(400).json({ error: 'ID inválido.' });
-        const dados = req.body;
+    };
+    update = async (req, res, next) => {
         try {
+            if (req.user?.role !== 'ADMIN' && req.user?.role !== 'ENCARREGADO') {
+                res.status(403).json({ error: 'Acesso negado.' });
+                return;
+            }
+            const { id } = req.params;
+            if (!id) {
+                res.status(400).json({ error: 'ID inválido.' });
+                return;
+            }
+            const dados = req.body;
             const osAtualizada = await prisma_1.prisma.$transaction(async (tx) => {
                 const exists = await tx.ordemServico.findUnique({ where: { id } });
-                if (!exists)
-                    throw new Error("RECORD_NOT_FOUND");
+                if (!exists) {
+                    throw new client_1.Prisma.PrismaClientKnownRequestError('Record not found', { code: 'P2025', clientVersion: '5' });
+                }
                 let custoTotalGeral = 0;
                 const itensParaCriar = dados.itens.map((item) => {
                     const total = item.quantidade * item.valorPorUnidade;
@@ -110,12 +112,11 @@ class ManutencaoController {
                         produtoId: item.produtoId,
                         quantidade: item.quantidade,
                         valorPorUnidade: item.valorPorUnidade,
-                        // CORREÇÃO: Arredondamento
                         valorTotal: Number(total.toFixed(2)),
                     };
                 });
-                // Arredonda o total geral da OS
                 custoTotalGeral = Number(custoTotalGeral.toFixed(2));
+                // Remove itens antigos para recriar (simples e eficaz para updates complexos)
                 await tx.itemOrdemServico.deleteMany({ where: { ordemServicoId: id } });
                 return await tx.ordemServico.update({
                     where: { id },
@@ -136,33 +137,27 @@ class ManutencaoController {
             res.json(osAtualizada);
         }
         catch (error) {
-            if (error.message === "RECORD_NOT_FOUND")
-                return res.status(404).json({ error: "OS não encontrada." });
-            console.error("Erro update OS:", error);
-            res.status(500).json({ error: 'Erro ao atualizar.' });
+            next(error);
         }
-    }
-    static async listRecent(req, res) {
+    };
+    listRecent = async (req, res, next) => {
         try {
             const { dataInicio, dataFim, veiculoId, limit } = req.query;
             const where = {};
             if (dataInicio || dataFim) {
                 const dateFilter = {};
-                if (dataInicio && typeof dataInicio === 'string') {
+                if (dataInicio && typeof dataInicio === 'string')
                     dateFilter.gte = new Date(dataInicio);
-                }
                 if (dataFim && typeof dataFim === 'string') {
                     const fim = new Date(dataFim);
                     fim.setDate(fim.getDate() + 1);
                     dateFilter.lt = fim;
                 }
-                if (Object.keys(dateFilter).length > 0) {
+                if (Object.keys(dateFilter).length > 0)
                     where.data = dateFilter;
-                }
             }
-            if (veiculoId && typeof veiculoId === 'string') {
+            if (veiculoId && typeof veiculoId === 'string')
                 where.veiculoId = veiculoId;
-            }
             const options = {
                 where,
                 orderBy: { data: 'desc' },
@@ -180,32 +175,34 @@ class ManutencaoController {
             res.json(recentes);
         }
         catch (error) {
-            console.error("Erro listRecent:", error);
-            res.status(500).json({ error: 'Erro ao buscar histórico.' });
+            next(error);
         }
-    }
-    static async delete(req, res) {
-        if (req.user?.role !== 'ADMIN')
-            return res.status(403).json({ error: 'Apenas ADMIN.' });
-        const { id } = req.params;
-        if (!id)
-            return res.status(400).json({ error: 'ID inválido.' });
+    };
+    delete = async (req, res, next) => {
         try {
+            if (req.user?.role !== 'ADMIN') {
+                res.status(403).json({ error: 'Apenas ADMIN.' });
+                return;
+            }
+            const { id } = req.params;
+            if (!id) {
+                res.status(400).json({ error: 'ID inválido.' });
+                return;
+            }
             await prisma_1.prisma.$transaction(async (tx) => {
                 const exists = await tx.ordemServico.findUnique({ where: { id } });
-                if (!exists)
-                    throw new Error("RECORD_NOT_FOUND");
+                if (!exists) {
+                    throw new client_1.Prisma.PrismaClientKnownRequestError('Record not found', { code: 'P2025', clientVersion: '5' });
+                }
                 await tx.itemOrdemServico.deleteMany({ where: { ordemServicoId: id } });
                 await tx.ordemServico.delete({ where: { id } });
             });
             res.json({ message: 'Removido.' });
         }
         catch (error) {
-            if (error.message === "RECORD_NOT_FOUND")
-                return res.status(404).json({ error: "OS não encontrada." });
-            res.status(500).json({ error: 'Erro ao remover.' });
+            next(error);
         }
-    }
+    };
 }
 exports.ManutencaoController = ManutencaoController;
 //# sourceMappingURL=ManutencaoController.js.map

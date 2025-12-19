@@ -1,8 +1,8 @@
-import { Response } from 'express';
+import { Response, NextFunction } from 'express';
 import { AuthenticatedRequest } from '../middleware/auth';
 export declare class RelatorioController {
-    static sumario(req: AuthenticatedRequest, res: Response): Promise<Response<any, Record<string, any>> | undefined>;
-    static ranking(req: AuthenticatedRequest, res: Response): Promise<Response<any, Record<string, any>> | undefined>;
-    static alertas(req: AuthenticatedRequest, res: Response): Promise<Response<any, Record<string, any>> | undefined>;
+    sumario: (req: AuthenticatedRequest, res: Response, next: NextFunction) => Promise<void>;
+    ranking: (req: AuthenticatedRequest, res: Response, next: NextFunction) => Promise<void>;
+    alertas: (req: AuthenticatedRequest, res: Response, next: NextFunction) => Promise<void>;
 }
 //# sourceMappingURL=RelatorioController.d.ts.map

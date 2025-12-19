@@ -5,27 +5,26 @@ const zod_1 = require("zod");
 // --- LOGIN ---
 exports.loginSchema = zod_1.z.object({
     body: zod_1.z.object({
-        // Isso valida formato e tipo string automaticamente.
-        email: zod_1.z.email({ error: "Email inválido" }),
-        password: zod_1.z.string({ error: "Senha obrigatória" }).min(1, { error: "Senha obrigatória" }),
+        email: zod_1.z.string({ error: "Email inválido" }).email({ message: "Formato de email inválido" }),
+        password: zod_1.z.string({ error: "Senha obrigatória" }).min(1, { message: "Senha obrigatória" }),
     })
 });
 // --- REGISTER ---
 exports.registerUserSchema = zod_1.z.object({
     body: zod_1.z.object({
-        nome: zod_1.z.string({ error: "Nome obrigatório" }).min(3, { error: "Mínimo 3 caracteres" }),
-        email: zod_1.z.email({ error: "Email inválido" }),
-        password: zod_1.z.string({ error: "Senha obrigatória" }).min(6, { error: "Senha muito curta" }),
+        nome: zod_1.z.string({ error: "Nome obrigatório" }).min(3, { message: "Mínimo 3 caracteres" }),
+        email: zod_1.z.string({ error: "Email inválido" }).email({ message: "Email inválido" }),
+        password: zod_1.z.string({ error: "Senha obrigatória" }).min(6, { message: "Senha muito curta" }),
         role: zod_1.z.enum(['ADMIN', 'ENCARREGADO', 'OPERADOR', 'RH', 'COORDENADOR'], {
             error: "Função inválida"
         }).optional().default('OPERADOR'),
-        matricula: zod_1.z.string().optional().nullable().transform(val => val === "" ? null : val),
-        cargoId: zod_1.z.string().optional().nullable().transform(val => val === "" ? null : val),
-        fotoUrl: zod_1.z.string().optional().nullable().transform(val => val === "" ? null : val),
-        cnhNumero: zod_1.z.string().optional().nullable().transform(val => val === "" ? null : val),
-        cnhCategoria: zod_1.z.string().optional().nullable().transform(val => val === "" ? null : val),
-        cnhValidade: zod_1.z.string().optional().nullable().transform(val => val === "" ? null : val),
-        dataAdmissao: zod_1.z.string().optional().nullable().transform(val => val === "" ? null : val),
+        matricula: zod_1.z.string().optional().nullable().transform(v => v || null),
+        cargoId: zod_1.z.string().optional().nullable().transform(v => v || null),
+        fotoUrl: zod_1.z.string().optional().nullable().transform(v => v || null),
+        cnhNumero: zod_1.z.string().optional().nullable().transform(v => v || null),
+        cnhCategoria: zod_1.z.string().optional().nullable().transform(v => v || null),
+        cnhValidade: zod_1.z.coerce.date().optional().nullable(),
+        dataAdmissao: zod_1.z.coerce.date().optional().nullable(),
     })
 });
 exports.loginWithTokenSchema = zod_1.z.object({

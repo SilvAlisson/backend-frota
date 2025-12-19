@@ -41,7 +41,9 @@ class AuthController {
             const user = await prisma_1.prisma.user.findFirst({ where: { loginToken } });
             if (!user)
                 return res.status(401).json({ error: 'Token inválido.' });
-            const token = jsonwebtoken_1.default.sign({ userId: user.id, role: user.role }, env_1.env.TOKEN_SECRET, { expiresIn: '30d' });
+            // ALTERAÇÃO 1: Validade estendida para 1 ano (365 dias)
+            // Isso garante que o login via QR Code não expire inesperadamente
+            const token = jsonwebtoken_1.default.sign({ userId: user.id, role: user.role }, env_1.env.TOKEN_SECRET, { expiresIn: '365d' });
             res.status(200).json({
                 message: 'Login por token OK',
                 token,
@@ -70,10 +72,16 @@ class AuthController {
             if (!userToCheck)
                 return res.status(404).json({ error: 'Usuário não encontrado.' });
             // 2. Quem pode TER um QR Code? (Operador e Encarregado)
-            // Isso permite que um Encarregado gere um token para si mesmo ou para outro Encarregado/Operador
             if (userToCheck.role !== 'OPERADOR' && userToCheck.role !== 'ENCARREGADO') {
                 return res.status(400).json({ error: 'Apenas Operadores e Encarregados podem ter acesso via QR Code.' });
             }
+            // ALTERAÇÃO 2: Verificação de token existente
+            // Se o usuário já possui um token, retornamos o existente.
+            // Isso evita que um clique acidental invalide o crachá físico do operador.
+            if (userToCheck.loginToken) {
+                return res.json({ loginToken: userToCheck.loginToken });
+            }
+            // Se não existe, gera um novo
             const token = crypto_1.default.randomBytes(32).toString('hex');
             await prisma_1.prisma.user.update({
                 where: { id },

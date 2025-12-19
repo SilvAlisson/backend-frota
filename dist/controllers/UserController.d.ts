@@ -1,10 +1,13 @@
-import { Request, Response } from 'express';
+import { Request, Response, NextFunction } from 'express';
 import { AuthenticatedRequest } from '../middleware/auth';
 export declare class UserController {
-    static create(req: AuthenticatedRequest, res: Response): Promise<Response<any, Record<string, any>> | undefined>;
-    static list(req: Request, res: Response): Promise<void>;
-    static getById(req: AuthenticatedRequest, res: Response): Promise<Response<any, Record<string, any>> | undefined>;
-    static update(req: AuthenticatedRequest, res: Response): Promise<Response<any, Record<string, any>> | undefined>;
-    static delete(req: AuthenticatedRequest, res: Response): Promise<Response<any, Record<string, any>> | undefined>;
+    /**
+     * Cria um novo utilizador.
+     */
+    create: (req: AuthenticatedRequest, res: Response, next: NextFunction) => Promise<void>;
+    list: (req: Request, res: Response, next: NextFunction) => Promise<void>;
+    getById: (req: AuthenticatedRequest, res: Response, next: NextFunction) => Promise<void>;
+    update: (req: AuthenticatedRequest, res: Response, next: NextFunction) => Promise<void>;
+    delete: (req: AuthenticatedRequest, res: Response, next: NextFunction) => Promise<void>;
 }
 //# sourceMappingURL=UserController.d.ts.map

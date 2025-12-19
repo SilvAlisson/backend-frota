@@ -2,14 +2,14 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.CargoController = void 0;
 const prisma_1 = require("../lib/prisma");
-const client_1 = require("@prisma/client"); // Importar Prisma para tratar erros
 class CargoController {
     // Criar Cargo + Requisitos iniciais
-    static async create(req, res) {
-        if (!['ADMIN', 'RH', 'ENCARREGADO'].includes(req.user?.role || '')) {
-            return res.status(403).json({ error: 'Acesso negado.' });
-        }
+    create = async (req, res, next) => {
         try {
+            if (!['ADMIN', 'RH', 'ENCARREGADO'].includes(req.user?.role || '')) {
+                res.status(403).json({ error: 'Acesso negado.' });
+                return;
+            }
             const { nome, descricao, requisitos } = req.body;
             const cargo = await prisma_1.prisma.cargo.create({
                 data: {
@@ -25,16 +25,11 @@ class CargoController {
             });
             res.status(201).json(cargo);
         }
-        catch (e) {
-            // Tratamento de erro do Prisma (P2002 = Unique Constraint)
-            if (e instanceof client_1.Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
-                return res.status(409).json({ error: 'Já existe um cargo com este nome.' });
-            }
-            console.error("Erro ao criar cargo:", e);
-            res.status(500).json({ error: 'Erro ao criar cargo.' });
+        catch (error) {
+            next(error); // Middleware trata P2002 (nome duplicado)
         }
-    }
-    static async list(req, res) {
+    };
+    list = async (req, res, next) => {
         try {
             const cargos = await prisma_1.prisma.cargo.findMany({
                 include: {
@@ -45,45 +40,50 @@ class CargoController {
             });
             res.json(cargos);
         }
-        catch (e) {
-            res.status(500).json({ error: 'Erro ao listar cargos.' });
+        catch (error) {
+            next(error);
         }
-    }
-    static async delete(req, res) {
-        if (!['ADMIN', 'RH'].includes(req.user?.role || '')) {
-            return res.status(403).json({ error: 'Acesso negado.' });
-        }
-        const { id } = req.params;
-        if (!id)
-            return res.status(400).json({ error: "ID inválido." });
+    };
+    delete = async (req, res, next) => {
         try {
+            if (!['ADMIN', 'RH'].includes(req.user?.role || '')) {
+                res.status(403).json({ error: 'Acesso negado.' });
+                return;
+            }
+            const { id } = req.params;
+            if (!id) {
+                res.status(400).json({ error: "ID inválido." });
+                return;
+            }
             await prisma_1.prisma.cargo.delete({ where: { id } });
             res.json({ message: 'Cargo removido com sucesso.' });
         }
-        catch (e) {
-            if (e instanceof client_1.Prisma.PrismaClientKnownRequestError && e.code === 'P2003') {
-                return res.status(409).json({ error: 'Não é possível remover cargo com colaboradores vinculados.' });
-            }
-            res.status(500).json({ error: 'Erro ao remover cargo.' });
+        catch (error) {
+            next(error); // Middleware trata P2003 (FK constraint - colaboradores vinculados)
         }
-    }
+    };
     // Adicionar um novo treinamento a um cargo existente
-    static async addRequisito(req, res) {
-        if (!['ADMIN', 'RH'].includes(req.user?.role || ''))
-            return res.sendStatus(403);
-        const { id: cargoId } = req.params;
-        if (!cargoId)
-            return res.status(400).json({ error: "ID do cargo inválido" });
+    addRequisito = async (req, res, next) => {
         try {
+            if (!['ADMIN', 'RH'].includes(req.user?.role || '')) {
+                res.status(403).json({ error: 'Acesso negado.' });
+                return;
+            }
+            const { id: cargoId } = req.params;
+            if (!cargoId) {
+                res.status(400).json({ error: "ID do cargo inválido" });
+                return;
+            }
             const dados = req.body;
+            // Opcional: Verificar existência (O erro de FK também trataria, mas 404 é mais claro)
             const cargoExiste = await prisma_1.prisma.cargo.findUnique({ where: { id: cargoId } });
-            if (!cargoExiste)
-                return res.status(404).json({ error: "Cargo não encontrado" });
+            if (!cargoExiste) {
+                res.status(404).json({ error: "Cargo não encontrado" });
+                return;
+            }
             const requisito = await prisma_1.prisma.treinamentoObrigatorio.create({
                 data: {
-                    cargo: {
-                        connect: { id: cargoId }
-                    },
+                    cargo: { connect: { id: cargoId } },
                     nome: dados.nome,
                     validadeMeses: dados.validadeMeses,
                     diasAntecedenciaAlerta: dados.diasAntecedenciaAlerta
@@ -91,28 +91,28 @@ class CargoController {
             });
             res.json(requisito);
         }
-        catch (e) {
-            console.error(e);
-            res.status(500).json({ error: 'Erro ao adicionar requisito.' });
+        catch (error) {
+            next(error);
         }
-    }
-    static async removeRequisito(req, res) {
-        if (!['ADMIN', 'RH'].includes(req.user?.role || ''))
-            return res.sendStatus(403);
-        const { requisitoId } = req.params;
-        if (!requisitoId)
-            return res.status(400).json({ error: "ID do requisito inválido" });
+    };
+    removeRequisito = async (req, res, next) => {
         try {
+            if (!['ADMIN', 'RH'].includes(req.user?.role || '')) {
+                res.status(403).json({ error: 'Acesso negado.' });
+                return;
+            }
+            const { requisitoId } = req.params;
+            if (!requisitoId) {
+                res.status(400).json({ error: "ID do requisito inválido" });
+                return;
+            }
             await prisma_1.prisma.treinamentoObrigatorio.delete({ where: { id: requisitoId } });
             res.json({ message: 'Requisito removido.' });
         }
-        catch (e) {
-            if (e instanceof client_1.Prisma.PrismaClientKnownRequestError && e.code === 'P2025') {
-                return res.status(404).json({ error: 'Requisito não encontrado.' });
-            }
-            res.status(500).json({ error: 'Erro ao remover requisito.' });
+        catch (error) {
+            next(error);
         }
-    }
+    };
 }
 exports.CargoController = CargoController;
 //# sourceMappingURL=CargoController.js.map

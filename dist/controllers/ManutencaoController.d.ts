@@ -1,9 +1,9 @@
-import { Request, Response } from 'express';
+import { Request, Response, NextFunction } from 'express';
 import { AuthenticatedRequest } from '../middleware/auth';
 export declare class ManutencaoController {
-    static create(req: AuthenticatedRequest, res: Response): Promise<Response<any, Record<string, any>> | undefined>;
-    static update(req: AuthenticatedRequest, res: Response): Promise<Response<any, Record<string, any>> | undefined>;
-    static listRecent(req: Request, res: Response): Promise<void>;
-    static delete(req: AuthenticatedRequest, res: Response): Promise<Response<any, Record<string, any>> | undefined>;
+    create: (req: AuthenticatedRequest, res: Response, next: NextFunction) => Promise<void>;
+    update: (req: AuthenticatedRequest, res: Response, next: NextFunction) => Promise<void>;
+    listRecent: (req: Request, res: Response, next: NextFunction) => Promise<void>;
+    delete: (req: AuthenticatedRequest, res: Response, next: NextFunction) => Promise<void>;
 }
 //# sourceMappingURL=ManutencaoController.d.ts.map

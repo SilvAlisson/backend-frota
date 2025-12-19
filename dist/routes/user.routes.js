@@ -6,14 +6,19 @@ const auth_1 = require("../middleware/auth");
 const validate_1 = require("../middleware/validate");
 const auth_schemas_1 = require("../schemas/auth.schemas");
 const router = (0, express_1.Router)();
+const userController = new UserController_1.UserController();
+// Middleware de autenticação para todas as rotas
 router.use(auth_1.authenticateToken);
-// Criar Usuário (Validação Completa)
-router.post('/register', (0, auth_1.authorize)(['ADMIN', 'RH']), (0, validate_1.validate)(auth_schemas_1.registerUserSchema), UserController_1.UserController.create);
-router.get('/', UserController_1.UserController.list);
-router.get('/:id', (0, auth_1.authorize)(['ADMIN', 'RH']), UserController_1.UserController.getById);
-// Update: Por enquanto sem validação Zod estrita para permitir parciais, 
-// ou você pode criar um 'updateUserSchema' onde todos os campos são .optional()
-router.put('/:id', (0, auth_1.authorize)(['ADMIN', 'RH']), UserController_1.UserController.update);
-router.delete('/:id', (0, auth_1.authorize)(['ADMIN', 'RH']), UserController_1.UserController.delete);
+// CREATE
+router.post('/', (0, validate_1.validate)(auth_schemas_1.registerUserSchema), userController.create);
+// LIST
+router.get('/', userController.list);
+// GET BY ID
+router.get('/:id', userController.getById);
+// UPDATE
+// Nota: Se quiser validar o update, crie um 'updateUserSchema' no Zod depois.
+router.put('/:id', userController.update);
+// DELETE
+router.delete('/:id', userController.delete);
 exports.default = router;
 //# sourceMappingURL=user.routes.js.map

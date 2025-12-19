@@ -6,10 +6,10 @@ export declare const abastecimentoSchema: z.ZodObject<{
         fornecedorId: z.ZodString;
         kmOdometro: z.ZodCoercedNumber<unknown>;
         dataHora: z.ZodCoercedDate<unknown>;
-        placaCartaoUsado: z.ZodPipe<z.ZodNullable<z.ZodOptional<z.ZodString>>, z.ZodTransform<string | null | undefined, string | null | undefined>>;
-        justificativa: z.ZodPipe<z.ZodNullable<z.ZodOptional<z.ZodString>>, z.ZodTransform<string | null | undefined, string | null | undefined>>;
-        observacoes: z.ZodPipe<z.ZodNullable<z.ZodOptional<z.ZodString>>, z.ZodTransform<string | null | undefined, string | null | undefined>>;
-        fotoNotaFiscalUrl: z.ZodURL;
+        placaCartaoUsado: z.ZodPipe<z.ZodNullable<z.ZodOptional<z.ZodString>>, z.ZodTransform<string | null, string | null | undefined>>;
+        justificativa: z.ZodPipe<z.ZodNullable<z.ZodOptional<z.ZodString>>, z.ZodTransform<string | null, string | null | undefined>>;
+        observacoes: z.ZodPipe<z.ZodNullable<z.ZodOptional<z.ZodString>>, z.ZodTransform<string | null, string | null | undefined>>;
+        fotoNotaFiscalUrl: z.ZodPipe<z.ZodUnion<[z.ZodNullable<z.ZodOptional<z.ZodString>>, z.ZodLiteral<"">]>, z.ZodTransform<string | null, string | null | undefined>>;
         itens: z.ZodArray<z.ZodObject<{
             produtoId: z.ZodString;
             quantidade: z.ZodCoercedNumber<unknown>;
@@ -19,7 +19,7 @@ export declare const abastecimentoSchema: z.ZodObject<{
 }, z.core.$strip>;
 export declare const manutencaoSchema: z.ZodObject<{
     body: z.ZodObject<{
-        veiculoId: z.ZodPipe<z.ZodNullable<z.ZodOptional<z.ZodString>>, z.ZodTransform<string | null | undefined, string | null | undefined>>;
+        veiculoId: z.ZodPipe<z.ZodNullable<z.ZodOptional<z.ZodString>>, z.ZodTransform<string | null, string | null | undefined>>;
         kmAtual: z.ZodNullable<z.ZodOptional<z.ZodCoercedNumber<unknown>>>;
         fornecedorId: z.ZodString;
         data: z.ZodCoercedDate<unknown>;
@@ -34,8 +34,8 @@ export declare const manutencaoSchema: z.ZodObject<{
             CONCLUIDA: "CONCLUIDA";
             CANCELADA: "CANCELADA";
         }>>>;
-        observacoes: z.ZodPipe<z.ZodNullable<z.ZodOptional<z.ZodString>>, z.ZodTransform<string | null | undefined, string | null | undefined>>;
-        fotoComprovanteUrl: z.ZodPipe<z.ZodNullable<z.ZodOptional<z.ZodString>>, z.ZodTransform<string | null | undefined, string | null | undefined>>;
+        observacoes: z.ZodPipe<z.ZodNullable<z.ZodOptional<z.ZodString>>, z.ZodTransform<string | null, string | null | undefined>>;
+        fotoComprovanteUrl: z.ZodPipe<z.ZodNullable<z.ZodOptional<z.ZodString>>, z.ZodTransform<string | null, string | null | undefined>>;
         itens: z.ZodArray<z.ZodObject<{
             produtoId: z.ZodString;
             quantidade: z.ZodCoercedNumber<unknown>;

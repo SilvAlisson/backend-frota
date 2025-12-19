@@ -4,19 +4,20 @@ exports.TreinamentoController = void 0;
 const prisma_1 = require("../lib/prisma");
 class TreinamentoController {
     // Cadastrar um treinamento (Manual)
-    static async create(req, res) {
-        if (!['ADMIN', 'RH', 'ENCARREGADO'].includes(req.user?.role || '')) {
-            return res.status(403).json({ error: 'Acesso negado.' });
-        }
+    create = async (req, res, next) => {
         try {
-            // Dados já validados pelo middleware
+            if (!['ADMIN', 'RH', 'ENCARREGADO'].includes(req.user?.role || '')) {
+                res.status(403).json({ error: 'Acesso negado.' });
+                return;
+            }
             const { userId, nome, dataRealizacao, descricao, dataVencimento, comprovanteUrl } = req.body;
             const treinamento = await prisma_1.prisma.treinamento.create({
                 data: {
+                    // Usamos connect para garantir a integridade da relação
                     user: { connect: { id: userId } },
                     nome,
-                    dataRealizacao,
-                    // CORREÇÃO: Forçar null se for undefined
+                    dataRealizacao, // Já vem como Date do Zod (coerce)
+                    // Fallbacks explícitos para evitar o erro de tipagem {} | null
                     descricao: descricao ?? null,
                     dataVencimento: dataVencimento ?? null,
                     comprovanteUrl: comprovanteUrl ?? null
@@ -24,19 +25,19 @@ class TreinamentoController {
             });
             res.status(201).json(treinamento);
         }
-        catch (e) {
-            console.error(e);
-            res.status(500).json({ error: 'Erro ao registrar treinamento.' });
+        catch (error) {
+            next(error);
         }
-    }
+    };
     // Importação em massa via Excel
-    static async importar(req, res) {
-        if (!['ADMIN', 'RH', 'ENCARREGADO'].includes(req.user?.role || '')) {
-            return res.status(403).json({ error: 'Acesso negado.' });
-        }
+    importar = async (req, res, next) => {
         try {
+            if (!['ADMIN', 'RH', 'ENCARREGADO'].includes(req.user?.role || '')) {
+                res.status(403).json({ error: 'Acesso negado.' });
+                return;
+            }
             const { userId, treinamentos } = req.body;
-            // createMany é otimizado para inserções em lote
+            // createMany é performático, mas exige que passemos o userId escalar diretamente
             const resultado = await prisma_1.prisma.treinamento.createMany({
                 data: treinamentos.map(t => ({
                     userId,
@@ -44,7 +45,7 @@ class TreinamentoController {
                     dataRealizacao: t.dataRealizacao,
                     descricao: t.descricao ?? null,
                     dataVencimento: t.dataVencimento ?? null,
-                    comprovanteUrl: null // Importação geralmente não tem comprovante
+                    comprovanteUrl: null // Importações em massa geralmente não trazem arquivos
                 }))
             });
             res.status(201).json({
@@ -52,41 +53,46 @@ class TreinamentoController {
                 count: resultado.count
             });
         }
-        catch (e) {
-            console.error("Erro na importação:", e);
-            res.status(500).json({ error: 'Erro ao importar treinamentos.' });
+        catch (error) {
+            next(error);
         }
-    }
-    // Listar treinamentos
-    static async listByUser(req, res) {
-        const { userId } = req.params;
-        if (!userId)
-            return res.status(400).json({ error: "ID de usuário inválido" });
+    };
+    // Listar treinamentos de um usuário
+    listByUser = async (req, res, next) => {
         try {
+            const { userId } = req.params;
+            if (!userId) {
+                res.status(400).json({ error: "ID de usuário inválido" });
+                return;
+            }
             const treinamentos = await prisma_1.prisma.treinamento.findMany({
                 where: { userId },
                 orderBy: { dataRealizacao: 'desc' }
             });
             res.json(treinamentos);
         }
-        catch (e) {
-            res.status(500).json({ error: 'Erro ao buscar treinamentos.' });
+        catch (error) {
+            next(error);
         }
-    }
-    static async delete(req, res) {
-        if (!['ADMIN', 'RH'].includes(req.user?.role || ''))
-            return res.sendStatus(403);
-        const { id } = req.params;
-        if (!id)
-            return res.status(400).json({ error: "ID inválido" });
+    };
+    delete = async (req, res, next) => {
         try {
+            if (!['ADMIN', 'RH'].includes(req.user?.role || '')) {
+                res.status(403).json({ error: 'Acesso negado.' });
+                return;
+            }
+            const { id } = req.params;
+            if (!id) {
+                res.status(400).json({ error: "ID inválido" });
+                return;
+            }
             await prisma_1.prisma.treinamento.delete({ where: { id } });
             res.json({ message: 'Registro removido.' });
         }
-        catch (e) {
-            res.status(500).json({ error: 'Erro ao remover.' });
+        catch (error) {
+            next(error);
         }
-    }
+    };
 }
 exports.TreinamentoController = TreinamentoController;
 //# sourceMappingURL=TreinamentoController.js.map

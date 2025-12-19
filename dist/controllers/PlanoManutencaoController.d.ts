@@ -1,8 +1,8 @@
-import { Response } from 'express';
+import { Response, NextFunction } from 'express';
 import { AuthenticatedRequest } from '../middleware/auth';
 export declare class PlanoManutencaoController {
-    static create(req: AuthenticatedRequest, res: Response): Promise<Response<any, Record<string, any>> | undefined>;
-    static list(req: AuthenticatedRequest, res: Response): Promise<Response<any, Record<string, any>> | undefined>;
-    static delete(req: AuthenticatedRequest, res: Response): Promise<Response<any, Record<string, any>> | undefined>;
+    create: (req: AuthenticatedRequest, res: Response, next: NextFunction) => Promise<void>;
+    list: (req: AuthenticatedRequest, res: Response, next: NextFunction) => Promise<void>;
+    delete: (req: AuthenticatedRequest, res: Response, next: NextFunction) => Promise<void>;
 }
 //# sourceMappingURL=PlanoManutencaoController.d.ts.map
