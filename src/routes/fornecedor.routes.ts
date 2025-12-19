@@ -5,13 +5,14 @@ import { validate } from '../middleware/validate';
 import { fornecedorSchema } from '../schemas/fornecedor.schemas';
 
 const router = Router();
+const fornecedorController = new FornecedorController();
+
 router.use(authenticateToken);
 
-router.post('/', validate(fornecedorSchema), FornecedorController.create);
-router.put('/:id', validate(fornecedorSchema), FornecedorController.update);
-
-router.get('/', FornecedorController.list);
-router.get('/:id', FornecedorController.getById);
-router.delete('/:id', FornecedorController.delete);
+router.post('/', validate(fornecedorSchema), fornecedorController.create);
+router.get('/', fornecedorController.list);
+router.get('/:id', fornecedorController.getById);
+router.put('/:id', validate(fornecedorSchema), fornecedorController.update);
+router.delete('/:id', fornecedorController.delete);
 
 export default router;

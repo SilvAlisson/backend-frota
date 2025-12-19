@@ -1,7 +1,6 @@
-import { AuthenticatedRequest } from '../middleware/auth';
-import { Response } from 'express';
+import { Request, Response, NextFunction } from 'express';
 import { prisma } from '../lib/prisma';
-import { Prisma } from '@prisma/client';
+import { AuthenticatedRequest } from '../middleware/auth';
 import { z } from 'zod';
 import { produtoSchema } from '../schemas/produto.schemas';
 
@@ -10,11 +9,13 @@ type ProdutoData = z.infer<typeof produtoSchema>['body'];
 
 export class ProdutoController {
 
-    static async create(req: AuthenticatedRequest, res: Response) {
-        if (req.user?.role !== 'ADMIN') return res.status(403).json({ error: 'Acesso negado.' });
-
+    create = async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
         try {
-            // req.body já validado, tipado e com defaults aplicados (unidadeMedida = Litro)
+            if (req.user?.role !== 'ADMIN') {
+                res.status(403).json({ error: 'Acesso negado.' });
+                return;
+            }
+
             const { nome, tipo, unidadeMedida } = req.body as ProdutoData;
 
             const produto = await prisma.produto.create({
@@ -25,69 +26,82 @@ export class ProdutoController {
                 }
             });
             res.status(201).json(produto);
-        } catch (e) {
-            if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
-                return res.status(409).json({ error: 'Produto com este nome já existe.' });
-            }
-            console.error("Erro ao criar produto:", e);
-            res.status(500).json({ error: 'Erro ao criar produto' });
+        } catch (error) {
+            next(error); // Middleware trata P2002 (Produto duplicado)
         }
     }
 
-    static async list(req: AuthenticatedRequest, res: Response) {
+    list = async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
         try {
             const produtos = await prisma.produto.findMany({ orderBy: { nome: 'asc' } });
             res.json(produtos);
-        } catch (e) { res.status(500).json({ error: 'Erro ao listar produtos' }); }
+        } catch (error) {
+            next(error);
+        }
     }
 
-    static async getById(req: AuthenticatedRequest, res: Response) {
-        const { id } = req.params;
-        if (!id) return res.status(400).json({ error: 'ID inválido' });
-
+    getById = async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
         try {
+            const { id } = req.params;
+            if (!id) {
+                res.status(400).json({ error: 'ID inválido' });
+                return;
+            }
+
             const produto = await prisma.produto.findUnique({ where: { id } });
-            produto ? res.json(produto) : res.status(404).json({ error: 'Não encontrado' });
-        } catch (e) { res.status(500).json({ error: 'Erro interno' }); }
+            if (!produto) {
+                res.status(404).json({ error: 'Não encontrado' });
+                return;
+            }
+            res.json(produto);
+        } catch (error) {
+            next(error);
+        }
     }
 
-    static async update(req: AuthenticatedRequest, res: Response) {
-        if (req.user?.role !== 'ADMIN') return res.status(403).json({ error: 'Acesso negado' });
-
-        const { id } = req.params;
-        if (!id) return res.status(400).json({ error: 'ID inválido' });
-
+    update = async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
         try {
-            // O Zod garante que o Tipo é válido se for enviado
+            if (req.user?.role !== 'ADMIN') {
+                res.status(403).json({ error: 'Acesso negado' });
+                return;
+            }
+
+            const { id } = req.params;
+            if (!id) {
+                res.status(400).json({ error: 'ID inválido' });
+                return;
+            }
+
             const { nome, tipo, unidadeMedida } = req.body as ProdutoData;
 
+            // Se o ID não existir, o Prisma lança P2025 -> middleware converte em 404
             const updated = await prisma.produto.update({
                 where: { id },
                 data: { nome, tipo, unidadeMedida }
             });
             res.json(updated);
-        } catch (e) {
-            if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
-                return res.status(409).json({ error: 'Nome de produto já existe.' });
-            }
-            res.status(500).json({ error: 'Erro ao atualizar' });
+        } catch (error) {
+            next(error);
         }
     }
 
-    static async delete(req: AuthenticatedRequest, res: Response) {
-        if (req.user?.role !== 'ADMIN') return res.status(403).json({ error: 'Acesso negado' });
-
-        const { id } = req.params;
-        if (!id) return res.status(400).json({ error: 'ID inválido' });
-
+    delete = async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
         try {
+            if (req.user?.role !== 'ADMIN') {
+                res.status(403).json({ error: 'Acesso negado' });
+                return;
+            }
+
+            const { id } = req.params;
+            if (!id) {
+                res.status(400).json({ error: 'ID inválido' });
+                return;
+            }
+
             await prisma.produto.delete({ where: { id } });
             res.json({ message: 'Removido com sucesso' });
-        } catch (e) {
-            if (e instanceof Prisma.PrismaClientKnownRequestError && (e.code === 'P2003' || e.code === 'P2014')) {
-                return res.status(409).json({ error: 'Produto em uso (histórico de abastecimento/manutenção).' });
-            }
-            res.status(500).json({ error: 'Erro ao remover.' });
+        } catch (error) {
+            next(error); // Middleware trata P2003 (Produto em uso em histórico)
         }
     }
 }

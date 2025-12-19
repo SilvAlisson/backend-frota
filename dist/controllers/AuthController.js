@@ -61,6 +61,7 @@ class AuthController {
     }
     static async generateToken(req, res) {
         try {
+            // 1. Quem pode GERAR? Apenas Gestores (Admin e Encarregado)
             if (req.user?.role !== 'ADMIN' && req.user?.role !== 'ENCARREGADO') {
                 return res.status(403).json({ error: 'Acesso negado. Apenas gestores podem gerar QR Code.' });
             }
@@ -68,6 +69,8 @@ class AuthController {
             const userToCheck = await prisma_1.prisma.user.findUnique({ where: { id } });
             if (!userToCheck)
                 return res.status(404).json({ error: 'Usuário não encontrado.' });
+            // 2. Quem pode TER um QR Code? (Operador e Encarregado)
+            // Isso permite que um Encarregado gere um token para si mesmo ou para outro Encarregado/Operador
             if (userToCheck.role !== 'OPERADOR' && userToCheck.role !== 'ENCARREGADO') {
                 return res.status(400).json({ error: 'Apenas Operadores e Encarregados podem ter acesso via QR Code.' });
             }

@@ -5,10 +5,19 @@ import { validate } from '../middleware/validate';
 import { abastecimentoSchema } from '../schemas/operacao.schemas';
 
 const router = Router();
+const abastecimentoController = new AbastecimentoController();
+
 router.use(authenticateToken);
 
-router.post('/', validate(abastecimentoSchema), AbastecimentoController.create);
-router.get('/recentes', AbastecimentoController.listRecent);
-router.delete('/:id', AbastecimentoController.delete);
+// 2. Usamos a instância nas rotas:
+
+router.post('/',
+    validate(abastecimentoSchema),
+    abastecimentoController.create
+);
+
+router.get('/recentes', abastecimentoController.listRecent);
+
+router.delete('/:id', abastecimentoController.delete);
 
 export default router;

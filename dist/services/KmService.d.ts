@@ -1,7 +1,7 @@
 export declare class KmService {
+    static registrarKm(veiculoId: string, km: number, origem: 'JORNADA' | 'ABASTECIMENTO' | 'MANUTENCAO' | 'MANUAL', origemId?: string): Promise<void>;
     /**
-     * Busca o MAIOR KM registado para um veículo.
-     * @throws Error se houver falha na comunicação com o banco.
+     * Busca o MAIOR KM registrado para um veículo usando a tabela Otimizada (HistoricoKm).
      */
     static getUltimoKMRegistrado(veiculoId: string): Promise<number>;
 }

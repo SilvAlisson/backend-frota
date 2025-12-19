@@ -5,18 +5,20 @@ import { validate } from '../middleware/validate';
 import { manutencaoSchema } from '../schemas/operacao.schemas';
 
 const router = Router();
+const manutencaoController = new ManutencaoController();
+
 router.use(authenticateToken);
 
 // Criar Manutenção
-router.post('/', validate(manutencaoSchema), ManutencaoController.create);
+router.post('/', validate(manutencaoSchema), manutencaoController.create);
 
 // Editar Manutenção
-router.put('/:id', validate(manutencaoSchema), ManutencaoController.update);
+router.put('/:id', validate(manutencaoSchema), manutencaoController.update);
 
 // Listar Recentes
-router.get('/recentes', ManutencaoController.listRecent);
+router.get('/recentes', manutencaoController.listRecent);
 
 // Remover Manutenção
-router.delete('/:id', ManutencaoController.delete);
+router.delete('/:id', manutencaoController.delete);
 
 export default router;

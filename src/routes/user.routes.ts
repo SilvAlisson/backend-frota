@@ -1,27 +1,33 @@
 import { Router } from 'express';
 import { UserController } from '../controllers/UserController';
-import { authenticateToken, authorize } from '../middleware/auth';
+import { authenticateToken } from '../middleware/auth';
 import { validate } from '../middleware/validate';
 import { registerUserSchema } from '../schemas/auth.schemas';
 
 const router = Router();
+const userController = new UserController();
 
+// Middleware de autenticação para todas as rotas
 router.use(authenticateToken);
 
-// Criar Usuário (Validação Completa)
-router.post('/register',
-    authorize(['ADMIN', 'RH']),
+// CREATE
+
+router.post('/',
     validate(registerUserSchema),
-    UserController.create
+    userController.create
 );
 
-router.get('/', UserController.list);
-router.get('/:id', authorize(['ADMIN', 'RH']), UserController.getById);
+// LIST
+router.get('/', userController.list);
 
-// Update: Por enquanto sem validação Zod estrita para permitir parciais, 
-// ou você pode criar um 'updateUserSchema' onde todos os campos são .optional()
-router.put('/:id', authorize(['ADMIN', 'RH']), UserController.update);
+// GET BY ID
+router.get('/:id', userController.getById);
 
-router.delete('/:id', authorize(['ADMIN', 'RH']), UserController.delete);
+// UPDATE
+// Nota: Se quiser validar o update, crie um 'updateUserSchema' no Zod depois.
+router.put('/:id', userController.update);
+
+// DELETE
+router.delete('/:id', userController.delete);
 
 export default router;

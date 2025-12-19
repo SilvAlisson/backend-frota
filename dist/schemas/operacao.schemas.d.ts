@@ -9,7 +9,7 @@ export declare const abastecimentoSchema: z.ZodObject<{
         placaCartaoUsado: z.ZodPipe<z.ZodNullable<z.ZodOptional<z.ZodString>>, z.ZodTransform<string | null | undefined, string | null | undefined>>;
         justificativa: z.ZodPipe<z.ZodNullable<z.ZodOptional<z.ZodString>>, z.ZodTransform<string | null | undefined, string | null | undefined>>;
         observacoes: z.ZodPipe<z.ZodNullable<z.ZodOptional<z.ZodString>>, z.ZodTransform<string | null | undefined, string | null | undefined>>;
-        fotoNotaFiscalUrl: z.ZodNullable<z.ZodOptional<z.ZodString>>;
+        fotoNotaFiscalUrl: z.ZodURL;
         itens: z.ZodArray<z.ZodObject<{
             produtoId: z.ZodString;
             quantidade: z.ZodCoercedNumber<unknown>;
@@ -28,6 +28,12 @@ export declare const manutencaoSchema: z.ZodObject<{
             CORRETIVA: "CORRETIVA";
             LAVAGEM: "LAVAGEM";
         }>;
+        status: z.ZodDefault<z.ZodOptional<z.ZodEnum<{
+            PENDENTE: "PENDENTE";
+            EM_ANDAMENTO: "EM_ANDAMENTO";
+            CONCLUIDA: "CONCLUIDA";
+            CANCELADA: "CANCELADA";
+        }>>>;
         observacoes: z.ZodPipe<z.ZodNullable<z.ZodOptional<z.ZodString>>, z.ZodTransform<string | null | undefined, string | null | undefined>>;
         fotoComprovanteUrl: z.ZodPipe<z.ZodNullable<z.ZodOptional<z.ZodString>>, z.ZodTransform<string | null | undefined, string | null | undefined>>;
         itens: z.ZodArray<z.ZodObject<{

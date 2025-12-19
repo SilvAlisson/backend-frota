@@ -1,4 +1,4 @@
-import { Response } from 'express';
+import { Request, Response, NextFunction } from 'express';
 import { prisma } from '../lib/prisma';
 import { KmService } from '../services/KmService';
 import { AuthenticatedRequest } from '../middleware/auth';
@@ -11,13 +11,14 @@ type RelatorioQuery = z.infer<typeof relatorioQuerySchema>['query'];
 
 export class RelatorioController {
 
-    static async sumario(req: AuthenticatedRequest, res: Response) {
-        if (req.user?.role !== 'ADMIN' && req.user?.role !== 'ENCARREGADO') {
-            return res.status(403).json({ error: 'Acesso negado' });
-        }
-
+    sumario = async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
         try {
-            // req.query já tipado e convertido para números pelo Zod
+            if (req.user?.role !== 'ADMIN' && req.user?.role !== 'ENCARREGADO') {
+                res.status(403).json({ error: 'Acesso negado' });
+                return;
+            }
+
+            // req.query já tipado e convertido para números pelo Zod (via middleware)
             const { ano, mes, veiculoId } = req.query as unknown as RelatorioQuery;
 
             const anoNum = ano || new Date().getFullYear();
@@ -84,17 +85,17 @@ export class RelatorioController {
                 }
             });
         } catch (e) {
-            console.error(e);
-            res.status(500).json({ error: 'Erro ao gerar sumário.' });
+            next(e);
         }
     }
 
-    static async ranking(req: AuthenticatedRequest, res: Response) {
-        if (req.user?.role !== 'ADMIN' && req.user?.role !== 'ENCARREGADO') {
-            return res.status(403).json({ error: 'Acesso negado' });
-        }
-
+    ranking = async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
         try {
+            if (req.user?.role !== 'ADMIN' && req.user?.role !== 'ENCARREGADO') {
+                res.status(403).json({ error: 'Acesso negado' });
+                return;
+            }
+
             const { ano, mes } = req.query as unknown as RelatorioQuery;
 
             const anoNum = ano || new Date().getFullYear();
@@ -151,16 +152,17 @@ export class RelatorioController {
 
             res.json(ranking);
         } catch (error) {
-            res.status(500).json({ error: 'Erro ao gerar ranking.' });
+            next(error);
         }
     }
 
-    static async alertas(req: AuthenticatedRequest, res: Response) {
-        if (!['ADMIN', 'ENCARREGADO', 'RH'].includes(req.user?.role || '')) {
-            return res.status(403).json({ error: 'Acesso negado' });
-        }
-
+    alertas = async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
         try {
+            if (!['ADMIN', 'ENCARREGADO', 'RH'].includes(req.user?.role || '')) {
+                res.status(403).json({ error: 'Acesso negado' });
+                return;
+            }
+
             const alertas = [];
             const hoje = new Date();
             const dataLimite = addDays(hoje, 30);
@@ -203,6 +205,8 @@ export class RelatorioController {
 
             alertas.sort((a, b) => (a.nivel === 'VENCIDO' ? -1 : 1));
             res.json(alertas);
-        } catch (e) { res.status(500).json({ error: 'Erro ao buscar alertas.' }); }
+        } catch (e) {
+            next(e);
+        }
     }
 }
