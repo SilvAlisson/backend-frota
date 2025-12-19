@@ -5,22 +5,23 @@ import { AuthenticatedRequest } from '../middleware/auth';
 import { z } from 'zod';
 import { veiculoSchema } from '../schemas/veiculo.schemas';
 
-// Helper function to format date
+// Helper para formatar data para o input HTML (YYYY-MM-DD)
 const formatDateToInput = (date: Date | null | undefined): string | null => {
     if (!date) return null;
     const d = new Date(date);
+    // Garante que não haja perda de dia por fuso horário ao extrair Y-M-D
     const dataCorrigida = new Date(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
     return dataCorrigida.toISOString().split('T')[0] as string;
 };
 
-// Extração do tipo limpo
+// Extração do tipo do Zod
 type VeiculoData = z.infer<typeof veiculoSchema>['body'];
 
 export class VeiculoController {
 
     /**
      * Cria um novo veículo.
-     * Erros de duplicidade (P2002) são tratados automaticamente pelo errorHandler.
+     * Agora inclui 'marca' e inicializa 'kmAtual'.
      */
     create = async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
         try {
@@ -34,10 +35,13 @@ export class VeiculoController {
             const novoVeiculo = await prisma.veiculo.create({
                 data: {
                     placa: dados.placa,
+                    marca: dados.marca,   // <--- ADICIONADO
                     modelo: dados.modelo,
                     ano: dados.ano,
                     tipoCombustivel: dados.tipoCombustivel,
                     status: dados.status || 'ATIVO',
+                    // Inicializa o odômetro com o valor informado ou 0
+                    kmAtual: dados.kmCadastro || 0, // <--- ADICIONADO
                     capacidadeTanque: dados.capacidadeTanque ?? null,
                     tipoVeiculo: dados.tipoVeiculo ?? null,
                     vencimentoCiv: dados.vencimentoCiv ?? null,
@@ -50,6 +54,10 @@ export class VeiculoController {
         }
     }
 
+    /**
+     * Lista veículos para a tabela.
+     * O Prisma retorna as datas (vencimento) como ISO Strings, o que é perfeito para o Frontend.
+     */
     list = async (req: Request, res: Response, next: NextFunction) => {
         try {
             const veiculos = await prisma.veiculo.findMany({
@@ -61,6 +69,10 @@ export class VeiculoController {
         }
     }
 
+    /**
+     * Busca veículo para Edição.
+     * Formata as datas para YYYY-MM-DD para preencher os inputs date corretamente.
+     */
     getById = async (req: Request, res: Response, next: NextFunction) => {
         try {
             const { id } = req.params;
@@ -75,13 +87,14 @@ export class VeiculoController {
                 return;
             }
 
+            // Busca o KM real (pode ser redundante se confiarmos no kmAtual da tabela, mas é mais seguro)
             const ultimoKm = await KmService.getUltimoKMRegistrado(id);
 
             const veiculoFormatado = {
                 ...veiculo,
+                kmAtual: ultimoKm, // Garante que o frontend receba o KM mais atualizado possível
                 vencimentoCiv: formatDateToInput(veiculo.vencimentoCiv),
                 vencimentoCipp: formatDateToInput(veiculo.vencimentoCipp),
-                ultimoKm: ultimoKm
             };
 
             res.status(200).json(veiculoFormatado);
@@ -105,11 +118,11 @@ export class VeiculoController {
 
             const dados = req.body as VeiculoData;
 
-            // Se o ID não existir, o Prisma lança P2025, que o errorHandler converte em 404 automaticamente.
             const updatedVeiculo = await prisma.veiculo.update({
                 where: { id },
                 data: {
                     placa: dados.placa,
+                    marca: dados.marca, // <--- ADICIONADO
                     modelo: dados.modelo,
                     ano: dados.ano,
                     tipoCombustivel: dados.tipoCombustivel,
@@ -118,6 +131,8 @@ export class VeiculoController {
                     tipoVeiculo: dados.tipoVeiculo ?? null,
                     vencimentoCiv: dados.vencimentoCiv ?? null,
                     vencimentoCipp: dados.vencimentoCipp ?? null,
+                    // Nota: Não atualizamos kmAtual aqui diretamente para evitar inconsistência com o histórico.
+                    // O KM deve ser atualizado via Abastecimento ou Jornada.
                 },
             });
             res.status(200).json(updatedVeiculo);
@@ -139,7 +154,6 @@ export class VeiculoController {
                 return;
             }
 
-            // Erros de Foreign Key (P2003) são tratados automaticamente pelo errorHandler
             await prisma.veiculo.delete({ where: { id } });
             res.status(200).json({ message: 'Veículo removido com sucesso.' });
         } catch (error) {

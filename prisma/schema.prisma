@@ -105,6 +105,7 @@ model User {
 model Veiculo {
   id               String          @id @default(cuid())
   placa            String          @unique
+  marca            String?
   modelo           String
   ano              Int
   tipoVeiculo      String?         

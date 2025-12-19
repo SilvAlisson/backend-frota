@@ -70,7 +70,7 @@ app.use('/api/produtos', produto_routes_1.default);
 // Gestão de Cargos e RH
 app.use('/api/cargos', cargo_routes_1.default);
 // Gestão de Treinamentos (RH - Fase 4)
-app.use('/api/treinamentos', treinamento_routes_1.default); // [NOVO]
+app.use('/api/treinamentos', treinamento_routes_1.default);
 // Fornecedores
 app.use('/api/fornecedor', fornecedor_routes_1.default);
 app.use('/api/fornecedores', fornecedor_routes_1.default);
@@ -94,4 +94,3 @@ app.listen(port, () => {
     console.log(`✅ Servidor Backend (MVC) rodando na porta ${port}`);
     console.log(`🌍 CORS permitido para: ${allowedOrigins.join(', ')}`);
 });
-//# sourceMappingURL=index.js.map

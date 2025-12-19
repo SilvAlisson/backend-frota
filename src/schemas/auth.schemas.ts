@@ -3,32 +3,33 @@ import { z } from 'zod';
 // --- LOGIN ---
 export const loginSchema = z.object({
     body: z.object({
-        // Isso valida formato e tipo string automaticamente.
-        email: z.email({ error: "Email inválido" }),
-        password: z.string({ error: "Senha obrigatória" }).min(1, { error: "Senha obrigatória" }),
+        email: z.string({ error: "Email inválido" }).email({ message: "Formato de email inválido" }),
+        password: z.string({ error: "Senha obrigatória" }).min(1, { message: "Senha obrigatória" }),
     })
 });
 
 // --- REGISTER ---
 export const registerUserSchema = z.object({
     body: z.object({
-        nome: z.string({ error: "Nome obrigatório" }).min(3, { error: "Mínimo 3 caracteres" }),
+        nome: z.string({ error: "Nome obrigatório" }).min(3, { message: "Mínimo 3 caracteres" }),
 
-        email: z.email({ error: "Email inválido" }),
+        email: z.string({ error: "Email inválido" }).email({ message: "Email inválido" }),
 
-        password: z.string({ error: "Senha obrigatória" }).min(6, { error: "Senha muito curta" }),
+        password: z.string({ error: "Senha obrigatória" }).min(6, { message: "Senha muito curta" }),
 
         role: z.enum(['ADMIN', 'ENCARREGADO', 'OPERADOR', 'RH', 'COORDENADOR'], {
             error: "Função inválida"
         }).optional().default('OPERADOR'),
 
-        matricula: z.string().optional().nullable().transform(val => val === "" ? null : val),
-        cargoId: z.string().optional().nullable().transform(val => val === "" ? null : val),
-        fotoUrl: z.string().optional().nullable().transform(val => val === "" ? null : val),
-        cnhNumero: z.string().optional().nullable().transform(val => val === "" ? null : val),
-        cnhCategoria: z.string().optional().nullable().transform(val => val === "" ? null : val),
-        cnhValidade: z.string().optional().nullable().transform(val => val === "" ? null : val),
-        dataAdmissao: z.string().optional().nullable().transform(val => val === "" ? null : val),
+        matricula: z.string().optional().nullable().transform(v => v || null),
+        cargoId: z.string().optional().nullable().transform(v => v || null),
+        fotoUrl: z.string().optional().nullable().transform(v => v || null),
+
+        cnhNumero: z.string().optional().nullable().transform(v => v || null),
+        cnhCategoria: z.string().optional().nullable().transform(v => v || null),
+
+        cnhValidade: z.coerce.date().optional().nullable(),
+        dataAdmissao: z.coerce.date().optional().nullable(),
     })
 });
 

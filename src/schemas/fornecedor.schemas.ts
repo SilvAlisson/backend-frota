@@ -6,16 +6,16 @@ const TipoFornecedorSchema = z.enum(['POSTO', 'OFICINA', 'LAVA_JATO', 'SEGURADOR
 
 export const fornecedorSchema = z.object({
     body: z.object({
-        nome: z.string({ error: "Nome é obrigatório" }).min(2),
+        nome: z.string({ error: "Nome é obrigatório" }).min(2, { message: "Nome muito curto" }),
 
         tipo: TipoFornecedorSchema.optional().default('OUTROS'),
 
-        // CORREÇÃO: Regex com mensagem de erro direta (Zod v4 style)
-        cnpj: z.union([
-            z.string().length(0),
-            z.null(),
-            z.undefined(),
-            z.string().regex(/^\d{2}\.\d{3}\.\d{3}\/\d{4}-\d{2}$/, "CNPJ inválido")
-        ]).optional().transform(e => e === "" ? null : e),
+        cnpj: z.string()
+            .optional()
+            .nullable()
+            .refine((val) => !val || /^\d{2}\.\d{3}\.\d{3}\/\d{4}-\d{2}$/.test(val), {
+                message: "CNPJ inválido (00.000.000/0000-00)"
+            })
+            .transform(v => v || null),
     })
 });
