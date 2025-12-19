@@ -18,7 +18,6 @@ export class RelatorioController {
                 return;
             }
 
-            // req.query já tipado e convertido para números pelo Zod (via middleware)
             const { ano, mes, veiculoId } = req.query as unknown as RelatorioQuery;
 
             const anoNum = ano || new Date().getFullYear();
@@ -207,6 +206,87 @@ export class RelatorioController {
             res.json(alertas);
         } catch (e) {
             next(e);
+        }
+    }
+
+    /**
+     * Relatório Específico de Lavagens (Excel)
+     * Busca manutenções (OrdemServico) do tipo LAVAGEM.
+     */
+    getRelatorioLavagens = async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+        try {
+            if (!['ADMIN', 'ENCARREGADO'].includes(req.user?.role || '')) {
+                res.status(403).json({ error: 'Acesso negado' });
+                return;
+            }
+
+            const { ano } = req.query;
+            const anoFiltro = Number(ano) || new Date().getFullYear();
+
+            const startDate = new Date(anoFiltro, 0, 1);
+            const endDate = new Date(anoFiltro, 11, 31, 23, 59, 59);
+
+            // CORREÇÃO: Usamos 'ordemServico' e filtramos pelo ENUM 'LAVAGEM'
+            const lavagens = await prisma.ordemServico.findMany({
+                where: {
+                    data: {
+                        gte: startDate,
+                        lte: endDate
+                    },
+                    // Usando o Enum TipoManutencao.LAVAGEM
+                    tipo: 'LAVAGEM'
+                },
+                include: {
+                    veiculo: true,
+                    fornecedor: true,
+                    // Incluímos itens para poder gerar a descrição detalhada (ex: "Lavagem Simples")
+                    itens: {
+                        include: {
+                            produto: true
+                        }
+                    }
+                },
+                orderBy: {
+                    data: 'asc'
+                }
+            });
+
+            // Calcula o resumo mensal (Mês Ref | Valor Mensal)
+            const resumoMensal = Array(12).fill(0);
+            
+            lavagens.forEach(l => {
+                const mes = new Date(l.data).getMonth(); // 0 = Jan, 11 = Dez
+                resumoMensal[mes] += Number(l.custoTotal);
+            });
+
+            const resumoFormatado = resumoMensal.map((valor, index) => ({
+                mes: new Date(anoFiltro, index, 1).toLocaleDateString('pt-BR', { month: '2-digit', year: 'numeric' }),
+                valorTotal: valor
+            }));
+
+            // Tratamento para enviar dados amigáveis ao Excel
+            const lavagensFormatadas = lavagens.map(l => {
+                // Se houver itens, junta os nomes dos produtos para formar a descrição
+                // Caso contrário usa 'Lavagem Geral' ou observações
+                const descricao = l.itens.length > 0 
+                    ? l.itens.map(i => i.produto.nome).join(' + ') 
+                    : (l.observacoes || 'Lavagem');
+
+                return {
+                    ...l,
+                    descricao, // Sobrescreve para facilitar no frontend
+                    notaFiscal: l.observacoes // Usamos obs como "Ticket/Nota" provisório, já que não há campo específico
+                };
+            });
+
+            res.json({
+                lavagens: lavagensFormatadas,
+                resumoMensal: resumoFormatado,
+                ano: anoFiltro
+            });
+
+        } catch (error) {
+            next(error);
         }
     }
 }
