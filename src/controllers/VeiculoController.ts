@@ -35,13 +35,11 @@ export class VeiculoController {
             const novoVeiculo = await prisma.veiculo.create({
                 data: {
                     placa: dados.placa,
-                    marca: dados.marca,   // <--- ADICIONADO
+                    marca: dados.marca,
                     modelo: dados.modelo,
                     ano: dados.ano,
                     tipoCombustivel: dados.tipoCombustivel,
                     status: dados.status || 'ATIVO',
-                    // Inicializa o odômetro com o valor informado ou 0
-                    kmAtual: dados.kmCadastro || 0, // <--- ADICIONADO
                     capacidadeTanque: dados.capacidadeTanque ?? null,
                     tipoVeiculo: dados.tipoVeiculo ?? null,
                     vencimentoCiv: dados.vencimentoCiv ?? null,
