@@ -1,4 +1,4 @@
-import { Response } from 'express';
+import { Request, Response, NextFunction } from 'express';
 import { prisma } from '../lib/prisma';
 import { KmService } from '../services/KmService';
 import { AuthenticatedRequest } from '../middleware/auth';
@@ -10,63 +10,73 @@ type AbastecimentoData = z.infer<typeof abastecimentoSchema>['body'];
 
 export class AbastecimentoController {
 
-    static async create(req: AuthenticatedRequest, res: Response) {
-        if (req.user?.role !== 'ADMIN' && req.user?.role !== 'ENCARREGADO') {
-            return res.status(403).json({ error: 'Acesso negado.' });
-        }
-
+    /**
+     * Registra um novo abastecimento.
+     * Inclui validação de tipo de combustível (Blindagem) e auditoria de KM.
+     */
+    create = async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
         try {
+            // 1. Verificação de Permissão
+            if (!['ADMIN', 'ENCARREGADO'].includes(req.user?.role || '')) {
+                res.status(403).json({ error: 'Acesso negado. Apenas Gestores podem lançar abastecimentos.' });
+                return;
+            }
+
             const dados = req.body as AbastecimentoData;
 
-            // Busca veículo para validações inteligentes (Blindagem de Combustível e KM)
+            // 2. Busca veículo para validações
             const veiculo = await prisma.veiculo.findUnique({ where: { id: dados.veiculoId } });
-            if (!veiculo) return res.status(404).json({ error: "Veículo não encontrado." });
+            if (!veiculo) {
+                res.status(404).json({ error: "Veículo não encontrado." });
+                return;
+            }
 
             // =================================================================================
-            // 1. BLINDAGEM INTELIGENTE: TIPO DE COMBUSTÍVEL
+            // 3. BLINDAGEM INTELIGENTE: TIPO DE COMBUSTÍVEL
             // =================================================================================
-            // Evita que um veículo DIESEL abasteça GASOLINA/ETANOL e vice-versa.
 
-            // Busca detalhes dos produtos selecionados para verificar o tipo
+            // Busca detalhes dos produtos para saber se é Gasolina, Diesel, etc.
             const itensComDetalhes = await Promise.all(dados.itens.map(async (item) => {
                 const produto = await prisma.produto.findUnique({ where: { id: item.produtoId } });
                 return { ...item, produto };
             }));
 
-            // Verifica se há incompatibilidade
+            // Verifica incompatibilidade
             const combustivelErrado = itensComDetalhes.find(item => {
-                // Se não for combustível (ex: Arla, Aditivo), não precisa bloquear
-                if (item.produto?.tipo !== 'COMBUSTIVEL') return false;
+                if (item.produto?.tipo !== 'COMBUSTIVEL') return false; // Arla/Aditivo passa direto
 
                 const nomeProduto = item.produto.nome.toUpperCase();
-                const tipoVeiculo = veiculo.tipoCombustivel; // DIESEL_S10, GASOLINA_COMUM, etc.
+                const tipoVeiculo = veiculo.tipoCombustivel;
 
-                // Regra 1: Veículo Diesel tentando abastecer Gasolina ou Etanol
+                // Regra A: Veículo Diesel tentando abastecer Gasolina/Etanol
                 if (tipoVeiculo === 'DIESEL_S10' && (nomeProduto.includes('GASOLINA') || nomeProduto.includes('ETANOL'))) return true;
 
-                // Regra 2: Veículo Gasolina/Flex tentando abastecer Diesel
-                if ((tipoVeiculo === 'GASOLINA_COMUM' || tipoVeiculo === 'ETANOL' || tipoVeiculo === 'GNV') && nomeProduto.includes('DIESEL')) return true;
+                // Regra B: Veículo Flex tentando abastecer Diesel
+                if ((['GASOLINA_COMUM', 'ETANOL', 'GNV'].includes(tipoVeiculo)) && nomeProduto.includes('DIESEL')) return true;
 
                 return false;
             });
 
             if (combustivelErrado) {
-                return res.status(400).json({
+                res.status(400).json({
                     error: `Bloqueio de Segurança: Veículo ${veiculo.tipoCombustivel} não pode abastecer ${combustivelErrado.produto?.nome}.`
                 });
+                return;
             }
 
             // =================================================================================
-            // 2. VALIDAÇÃO DE KM (AUDITORIA)
+            // 4. AUDITORIA DE KM
             // =================================================================================
             const ultimoKM = await KmService.getUltimoKMRegistrado(dados.veiculoId);
 
-            // Apenas alerta, não bloqueia (permite lançamento retroativo em caso de esquecimento)
             if (dados.kmOdometro < ultimoKM) {
                 console.warn(`[Abastecimento] Retroativo: KM informado ${dados.kmOdometro} < Atual ${ultimoKM}. Veículo: ${dados.veiculoId}`);
             }
 
-            // 3. Preparação dos Itens e Cálculo (SAFE DECIMAL)
+            // =================================================================================
+            // 5. CÁLCULOS E TRANSAÇÃO
+            // =================================================================================
+
             let custoTotalGeral = 0;
             const itensParaCriar = dados.itens.map((item) => {
                 const total = item.quantidade * item.valorPorUnidade;
@@ -75,16 +85,13 @@ export class AbastecimentoController {
                     produtoId: item.produtoId,
                     quantidade: item.quantidade,
                     valorPorUnidade: item.valorPorUnidade,
-                    // CORREÇÃO: Arredondamento para evitar dízimas no banco Decimal(10,2)
                     valorTotal: Number(total.toFixed(2)),
                 };
             });
 
-            // Arredonda o total geral da nota para evitar erros de precisão
+            // Arredonda o total geral
             custoTotalGeral = Number(custoTotalGeral.toFixed(2));
 
-            // 4. Transação ACID
-            // Garante que o registro seja atômico
             const novoAbastecimento = await prisma.$transaction(async (tx) => {
                 return await tx.abastecimento.create({
                     data: {
@@ -105,17 +112,22 @@ export class AbastecimentoController {
             });
 
             res.status(201).json(novoAbastecimento);
+
         } catch (error) {
-            console.error("Erro no abastecimento:", error);
-            res.status(500).json({ error: 'Erro ao registrar abastecimento' });
+            next(error);
         }
     }
 
-    static async listRecent(req: AuthenticatedRequest, res: Response) {
-        if (req.user?.role !== 'ADMIN' && req.user?.role !== 'ENCARREGADO') {
-            return res.status(403).json({ error: 'Acesso negado.' });
-        }
+    /**
+     * Lista abastecimentos recentes com filtros.
+     */
+    listRecent = async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
         try {
+            if (!['ADMIN', 'ENCARREGADO'].includes(req.user?.role || '')) {
+                res.status(403).json({ error: 'Acesso negado.' });
+                return;
+            }
+
             const { dataInicio, dataFim, veiculoId, limit } = req.query;
             const where: Prisma.AbastecimentoWhereInput = {};
 
@@ -138,45 +150,65 @@ export class AbastecimentoController {
                 where.veiculoId = veiculoId;
             }
 
-            const recentes = await prisma.abastecimento.findMany({
+            // CORREÇÃO ELEGANTE: 
+            // Criamos o objeto de opções tipado explicitamente.
+            // Isso evita erros de 'take: number | undefined' que o Prisma rejeita.
+            const findOptions: Prisma.AbastecimentoFindManyArgs = {
                 where,
-                // Spread condicional para evitar erro de tipo com 'undefined'
-                ...(limit !== 'all' ? { take: 50 } : {}),
                 orderBy: { dataHora: 'desc' },
                 include: {
-                    // Importante: 'id: true' para que o frontend consiga vincular os dados corretamente nos relatórios
                     veiculo: { select: { id: true, placa: true, modelo: true } },
                     operador: { select: { nome: true } },
                     fornecedor: { select: { nome: true } },
                     itens: { include: { produto: { select: { nome: true, tipo: true } } } }
                 }
-            });
+            };
+
+            // Adicionamos 'take' apenas se necessário.
+            if (limit !== 'all') {
+                findOptions.take = 50;
+            }
+
+            const recentes = await prisma.abastecimento.findMany(findOptions);
             res.json(recentes);
         } catch (error) {
-            console.error("Erro ao buscar histórico:", error);
-            res.status(500).json({ error: 'Erro ao buscar histórico.' });
+            next(error);
         }
     }
 
-    static async delete(req: AuthenticatedRequest, res: Response) {
-        if (req.user?.role !== 'ADMIN') return res.status(403).json({ error: 'Acesso negado.' });
-
-        const { id } = req.params;
-        if (!id) return res.status(400).json({ error: 'ID inválido.' });
-
+    /**
+     * Remove um abastecimento e seus itens (Transação).
+     */
+    delete = async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
         try {
+            if (req.user?.role !== 'ADMIN') {
+                res.status(403).json({ error: 'Apenas Administradores podem excluir abastecimentos.' });
+                return;
+            }
+
+            const { id } = req.params;
+            if (!id) {
+                res.status(400).json({ error: 'ID inválido.' });
+                return;
+            }
+
             await prisma.$transaction(async (tx) => {
                 const exists = await tx.abastecimento.findUnique({ where: { id } });
-                if (!exists) throw new Error("RECORD_NOT_FOUND");
+                if (!exists) {
+                    // Lança erro P2025 (padrão Prisma para Record Not Found) para o middleware tratar
+                    throw new Prisma.PrismaClientKnownRequestError('Record not found', {
+                        code: 'P2025',
+                        clientVersion: '5'
+                    });
+                }
 
                 await tx.itemAbastecimento.deleteMany({ where: { abastecimentoId: id } });
                 await tx.abastecimento.delete({ where: { id } });
             });
 
             res.json({ message: 'Abastecimento removido.' });
-        } catch (error: any) {
-            if (error.message === 'RECORD_NOT_FOUND') return res.status(404).json({ error: 'Registro não encontrado.' });
-            res.status(500).json({ error: 'Erro ao deletar registro.' });
+        } catch (error) {
+            next(error);
         }
     }
 }

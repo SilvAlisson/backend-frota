@@ -1,4 +1,4 @@
-import { Response } from 'express';
+import { Request, Response, NextFunction } from 'express';
 import { prisma } from '../lib/prisma';
 import { KmService } from '../services/KmService';
 import { AuthenticatedRequest } from '../middleware/auth';
@@ -10,12 +10,13 @@ type CreatePlanoData = z.infer<typeof planoManutencaoSchema>['body'];
 
 export class PlanoManutencaoController {
 
-    static async create(req: AuthenticatedRequest, res: Response) {
-        if (req.user?.role !== 'ADMIN') {
-            return res.status(403).json({ error: 'Acesso negado.' });
-        }
-
+    create = async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
         try {
+            if (req.user?.role !== 'ADMIN') {
+                res.status(403).json({ error: 'Acesso negado.' });
+                return;
+            }
+
             // req.body já validado e tipado pelo middleware
             const { veiculoId, descricao, tipoIntervalo, valorIntervalo } = req.body as CreatePlanoData;
 
@@ -28,7 +29,7 @@ export class PlanoManutencaoController {
             // Lógica de Negócio: Calcular vencimento
             if (tipoIntervalo === 'KM') {
                 if (valorIntervalo > 0) {
-                    // CORREÇÃO: Lógica de Múltiplos (Ex: 20, 40, 60...)
+                    // Lógica de Múltiplos (Ex: 20, 40, 60...)
                     // Se kmAtual = 111.405 e intervalo = 20.000:
                     // 111.405 / 20.000 = 5.57 -> Floor = 5
                     // (5 + 1) * 20.000 = 120.000 KM (Próxima revisão correta)
@@ -62,17 +63,17 @@ export class PlanoManutencaoController {
 
             res.status(201).json(plano);
         } catch (error) {
-            console.error("Erro ao criar plano:", error);
-            res.status(500).json({ error: 'Erro ao criar plano de manutenção.' });
+            next(error);
         }
     }
 
-    static async list(req: AuthenticatedRequest, res: Response) {
-        if (req.user?.role !== 'ADMIN') {
-            return res.status(403).json({ error: 'Acesso negado.' });
-        }
-
+    list = async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
         try {
+            if (req.user?.role !== 'ADMIN') {
+                res.status(403).json({ error: 'Acesso negado.' });
+                return;
+            }
+
             const planos = await prisma.planoManutencao.findMany({
                 include: {
                     veiculo: {
@@ -85,27 +86,29 @@ export class PlanoManutencaoController {
             });
             res.json(planos);
         } catch (error) {
-            console.error("Erro ao listar planos:", error);
-            res.status(500).json({ error: 'Erro ao listar planos.' });
+            next(error);
         }
     }
 
-    static async delete(req: AuthenticatedRequest, res: Response) {
-        if (req.user?.role !== 'ADMIN') {
-            return res.status(403).json({ error: 'Acesso negado.' });
-        }
-
-        const { id } = req.params;
-        if (!id) return res.status(400).json({ error: 'ID do plano não fornecido.' });
-
+    delete = async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
         try {
+            if (req.user?.role !== 'ADMIN') {
+                res.status(403).json({ error: 'Acesso negado.' });
+                return;
+            }
+
+            const { id } = req.params;
+            if (!id) {
+                res.status(400).json({ error: 'ID do plano não fornecido.' });
+                return;
+            }
+
             await prisma.planoManutencao.delete({
                 where: { id }
             });
             res.status(204).send();
         } catch (error) {
-            console.error("Erro ao deletar plano:", error);
-            res.status(500).json({ error: 'Erro ao deletar plano.' });
+            next(error);
         }
     }
 }

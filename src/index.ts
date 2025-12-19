@@ -2,8 +2,11 @@ import express from 'express';
 import cors from 'cors';
 import 'dotenv/config';
 import cron from 'node-cron';
-import { JornadaService } from './services/JornadaService';
 import { env } from './config/env';
+
+// Services e Middlewares
+import { JornadaService } from './services/JornadaService';
+import { errorHandler } from './middleware/errorHandler';
 
 // ================== IMPORTS DE ROTAS ==================
 import authRoutes from './routes/auth.routes';
@@ -19,9 +22,9 @@ import relatorioRoutes from './routes/relatorio.routes';
 import cargoRoutes from './routes/cargo.routes';
 import treinamentoRoutes from './routes/treinamento.routes';
 
-// ================== VERIFICAÇÃO DE SEGURANÇA ==================
+// ================== VERIFICAÇÃO DE AMBIENTE ==================
 if (!process.env.TOKEN_SECRET) {
-  console.error("🔴 ERRO FATAL: TOKEN_SECRET não definido nas variáveis de ambiente.");
+  console.error("🔴 ERRO FATAL: TOKEN_SECRET não definido no .env");
   process.exit(1);
 }
 
@@ -31,7 +34,7 @@ const port = env.PORT || 3001;
 // ================== MIDDLEWARES GLOBAIS ==================
 app.use(express.json());
 
-// ================== CONFIGURAÇÃO DE CORS ==================
+// Configuração de CORS
 const allowedOrigins = env.CORS_ORIGINS.includes(',')
   ? env.CORS_ORIGINS.split(',')
   : [env.CORS_ORIGINS];
@@ -39,7 +42,6 @@ const allowedOrigins = env.CORS_ORIGINS.includes(',')
 app.use(cors({
   origin: function (origin, callback) {
     if (!origin) return callback(null, true);
-
     if (allowedOrigins.includes('*') || allowedOrigins.indexOf(origin) !== -1) {
       callback(null, true);
     } else {
@@ -48,64 +50,44 @@ app.use(cors({
   }
 }));
 
-// ================== ROTAS ==================
+// ================== ROTAS DA API ==================
+// Autenticação e Usuários
 app.use('/api/auth', authRoutes);
-
-// Usuários
-app.use('/api/user', userRoutes);
 app.use('/api/users', userRoutes);
 
-// Veículos
-app.use('/api/veiculo', veiculoRoutes);
+// Gestão de Frota
 app.use('/api/veiculos', veiculoRoutes);
-
-// Abastecimentos
-app.use('/api/abastecimento', abastecimentoRoutes);
 app.use('/api/abastecimentos', abastecimentoRoutes);
-
-// Jornadas
-app.use('/api/jornada', jornadaRoutes);
 app.use('/api/jornadas', jornadaRoutes);
-
-// Manutenção (Ordem de Serviço)
-app.use('/api/ordem-servico', manutencaoRoutes);
 app.use('/api/ordens-servico', manutencaoRoutes);
-
-// Produtos
-app.use('/api/produto', produtoRoutes);
-app.use('/api/produtos', produtoRoutes);
-
-// Gestão de Cargos e RH
-app.use('/api/cargos', cargoRoutes);
-
-// Gestão de Treinamentos (RH - Fase 4)
-app.use('/api/treinamentos', treinamentoRoutes); // [NOVO]
-
-// Fornecedores
-app.use('/api/fornecedor', fornecedorRoutes);
-app.use('/api/fornecedores', fornecedorRoutes);
-
-// Planos de Manutenção
-app.use('/api/plano-manutencao', planoManutencaoRoutes);
 app.use('/api/planos-manutencao', planoManutencaoRoutes);
 
-// Relatórios e Alertas
-app.use('/api/relatorio', relatorioRoutes);
-app.use('/api', relatorioRoutes);
+// Cadastros Auxiliares
+app.use('/api/produtos', produtoRoutes);
+app.use('/api/fornecedores', fornecedorRoutes);
 
-// Rota de Health Check
+// RH e Gestão
+app.use('/api/cargos', cargoRoutes);
+app.use('/api/treinamentos', treinamentoRoutes);
+
+// Relatórios
+app.use('/api/relatorios', relatorioRoutes);
+
+// Health Check (Monitoramento)
 app.get('/health', (req, res) => {
   res.json({ status: 'UP', timestamp: new Date() });
 });
 
+// ================== TRATAMENTO DE ERROS ==================
+app.use(errorHandler);
+
 // ================== CRON JOBS ==================
 cron.schedule('0 * * * *', async () => {
-  console.log('⏰ [Cron] Executando verificação automática de jornadas vencidas...');
   await JornadaService.fecharJornadasVencidas();
 });
 
-// ================== INICIALIZAÇÃO ==================
+// ================== START SERVER ==================
 app.listen(port, () => {
-  console.log(`✅ Servidor Backend (MVC) rodando na porta ${port}`);
-  console.log(`🌍 CORS permitido para: ${allowedOrigins.join(', ')}`);
+  console.log(`✅ Servidor rodando na porta ${port}`);
+  console.log(`🌍 Ambiente: ${process.env.NODE_ENV || 'development'}`);
 });

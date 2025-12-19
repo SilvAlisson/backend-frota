@@ -5,11 +5,20 @@ import { validate } from '../middleware/validate';
 import { createTreinamentoSchema, importTreinamentosSchema } from '../schemas/treinamentos.schemas';
 
 const router = Router();
+const controller = new TreinamentoController();
+
 router.use(authenticateToken);
 
-router.post('/', validate(createTreinamentoSchema), TreinamentoController.create);
-router.post('/importar', validate(importTreinamentosSchema), TreinamentoController.importar);
-router.get('/usuario/:userId', TreinamentoController.listByUser);
-router.delete('/:id', TreinamentoController.delete);
+// Cadastro Manual
+router.post('/', validate(createTreinamentoSchema), controller.create);
+
+// Importação em Massa
+router.post('/importar', validate(importTreinamentosSchema), controller.importar);
+
+// Listar por Usuário
+router.get('/usuario/:userId', controller.listByUser);
+
+// Deletar
+router.delete('/:id', controller.delete);
 
 export default router;

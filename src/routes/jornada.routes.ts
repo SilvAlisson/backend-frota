@@ -9,21 +9,24 @@ import {
 } from '../schemas/jornada.schemas';
 
 const router = Router();
+const jornadaController = new JornadaController();
+
 router.use(authenticateToken);
 
 // Iniciar (Valida Body)
-router.post('/iniciar', validate(iniciarJornadaSchema), JornadaController.iniciar);
+// <--- 2. Uso da instância
+router.post('/iniciar', validate(iniciarJornadaSchema), jornadaController.iniciar);
 
 // Finalizar (Valida ID no Params + Body)
-router.put('/finalizar/:id', validate(finalizarJornadaSchema), JornadaController.finalizar);
+router.put('/finalizar/:id', validate(finalizarJornadaSchema), jornadaController.finalizar);
 
 // Buscas (Valida Query Params)
-router.get('/historico', validate(buscaJornadaSchema), JornadaController.listarHistorico);
+router.get('/historico', validate(buscaJornadaSchema), jornadaController.listarHistorico);
 
 // Rotas sem validação complexa (apenas autenticação)
-router.get('/abertas', JornadaController.listarAbertas);
-router.get('/minhas-abertas-operador', JornadaController.listarMinhasAbertas);
-router.post('/verificar-timeouts', JornadaController.verificarTimeouts);
-router.delete('/:id', JornadaController.delete);
+router.get('/abertas', jornadaController.listarAbertas);
+router.get('/minhas-abertas-operador', jornadaController.listarMinhasAbertas);
+router.post('/verificar-timeouts', jornadaController.verificarTimeouts);
+router.delete('/:id', jornadaController.delete);
 
 export default router;

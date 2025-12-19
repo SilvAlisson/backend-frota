@@ -3,14 +3,17 @@ import { z } from 'zod';
 // Schema para Iniciar Jornada
 export const iniciarJornadaSchema = z.object({
     body: z.object({
-        veiculoId: z.string({ error: "Veículo obrigatório" }).min(1),
-        encarregadoId: z.string({ error: "Encarregado obrigatório" }).min(1),
+        veiculoId: z.string({ error: "Veículo obrigatório" }).min(1, { error: "Veículo obrigatório" }),
 
-        // Zod coerce transforma string/number em number
-        kmInicio: z.coerce.number({ error: "KM inválido" }).positive({ error: "KM deve ser positivo" }),
+        // Se for enviado manualmente 
+        encarregadoId: z.string({ error: "Encarregado obrigatório" }).min(1, { error: "Encarregado obrigatório" }).optional(),
 
-        observacoes: z.string().optional().nullable().transform(v => v === "" ? null : v),
-        fotoInicioUrl: z.string().optional().nullable().transform(v => v === "" ? null : v),
+        kmInicio: z.coerce.number({ error: "KM inválido" })
+            .positive({ error: "KM deve ser positivo" }),
+
+        // Transformação para garantir null no banco (evita erro de tipagem '{} | null')
+        observacoes: z.string().optional().nullable().transform(v => v || null),
+        fotoInicioUrl: z.string().optional().nullable().transform(v => v || null),
     })
 });
 
@@ -20,9 +23,11 @@ export const finalizarJornadaSchema = z.object({
         id: z.string({ error: "ID da jornada obrigatório" })
     }),
     body: z.object({
-        kmFim: z.coerce.number({ error: "KM final inválido" }).positive(),
-        observacoes: z.string().optional().nullable().transform(v => v === "" ? null : v),
-        fotoFimUrl: z.string().optional().nullable().transform(v => v === "" ? null : v),
+        kmFim: z.coerce.number({ error: "KM final inválido" })
+            .positive({ error: "KM deve ser positivo" }),
+
+        observacoes: z.string().optional().nullable().transform(v => v || null),
+        fotoFimUrl: z.string().optional().nullable().transform(v => v || null),
     })
 });
 

@@ -5,14 +5,15 @@ import { validate } from '../middleware/validate';
 import { veiculoSchema } from '../schemas/veiculo.schemas';
 
 const router = Router();
+const veiculoController = new VeiculoController();
+
+// Middleware de autenticação aplicado a todas as rotas
 router.use(authenticateToken);
 
-// Adicionado o middleware validate()
-router.post('/', validate(veiculoSchema), VeiculoController.create);
-router.put('/:id', validate(veiculoSchema), VeiculoController.update);
-
-router.get('/', VeiculoController.list);
-router.get('/:id', VeiculoController.getById);
-router.delete('/:id', VeiculoController.delete);
+router.post('/', validate(veiculoSchema), veiculoController.create);
+router.get('/', veiculoController.list);
+router.get('/:id', veiculoController.getById);
+router.put('/:id', validate(veiculoSchema), veiculoController.update);
+router.delete('/:id', veiculoController.delete);
 
 export default router;

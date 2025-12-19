@@ -5,12 +5,15 @@ import { validate } from '../middleware/validate';
 import { relatorioQuerySchema } from '../schemas/relatorio.schemas';
 
 const router = Router();
+const relatorioController = new RelatorioController();
+
 router.use(authenticateToken);
 
-// Aplicamos o middleware para validar os Query Params (ano, mes)
-router.get('/sumario', validate(relatorioQuerySchema), RelatorioController.sumario);
-router.get('/ranking-operadores', validate(relatorioQuerySchema), RelatorioController.ranking);
+// Adicionado middleware 'validate' para garantir tipos de Query Params (ano, mes)
+router.get('/sumario', validate(relatorioQuerySchema), relatorioController.sumario);
+router.get('/ranking', validate(relatorioQuerySchema), relatorioController.ranking);
 
-router.get('/alertas', RelatorioController.alertas);
+// Alertas não precisa de input complexo, apenas filtro interno
+router.get('/alertas', relatorioController.alertas);
 
 export default router;
