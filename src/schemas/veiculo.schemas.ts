@@ -6,9 +6,11 @@ export const veiculoSchema = z.object({
             .length(7, { message: "A placa deve ter 7 caracteres" })
             .transform(v => v.toUpperCase()),
 
-        modelo: z.string({ error: "Modelo obrigatório" }).min(2, { message: "Modelo muito curto" }),
+        modelo: z.string({ error: "Modelo obrigatório" })
+            .min(2, { message: "Modelo muito curto" }),
 
-        marca: z.string().optional().nullable().transform(v => v || null),
+        marca: z.string({ error: "Marca é obrigatória" })
+            .min(2, { message: "Informe a marca correta" }),
 
         ano: z.coerce.number({ error: "Ano inválido" })
             .int()
@@ -28,6 +30,6 @@ export const veiculoSchema = z.object({
         vencimentoCiv: z.coerce.date().optional().nullable(),
         vencimentoCipp: z.coerce.date().optional().nullable(),
 
-        kmCadastro: z.coerce.number().optional().default(0),
+        kmAtual: z.coerce.number({ error: "KM inválido" }).optional().default(0),
     })
 });

@@ -14,14 +14,14 @@ const formatDateToInput = (date: Date | null | undefined): string | null => {
     return dataCorrigida.toISOString().split('T')[0] as string;
 };
 
-// Extração do tipo do Zod
-type VeiculoData = z.infer<typeof veiculoSchema>['body'];
+// Extração do tipo do Zod + kmAtual que não está no schema do banco, mas vem no body
+type VeiculoData = z.infer<typeof veiculoSchema>['body'] & { kmAtual?: number };
 
 export class VeiculoController {
 
     /**
      * Cria um novo veículo.
-     * Agora inclui 'marca' e inicializa 'kmAtual'.
+     * Agora inclui 'marca' e inicializa 'kmAtual' no Histórico via Transação.
      */
     create = async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
         try {
@@ -32,21 +32,46 @@ export class VeiculoController {
 
             const dados = req.body as VeiculoData;
 
-            const novoVeiculo = await prisma.veiculo.create({
-                data: {
-                    placa: dados.placa,
-                    marca: dados.marca,
-                    modelo: dados.modelo,
-                    ano: dados.ano,
-                    tipoCombustivel: dados.tipoCombustivel,
-                    status: dados.status || 'ATIVO',
-                    capacidadeTanque: dados.capacidadeTanque ?? null,
-                    tipoVeiculo: dados.tipoVeiculo ?? null,
-                    vencimentoCiv: dados.vencimentoCiv ?? null,
-                    vencimentoCipp: dados.vencimentoCipp ?? null,
-                },
+            // Validação do Marco Zero (Obrigatório para o sistema funcionar corretamente)
+            const kmInicial = Number(dados.kmAtual);
+            if (isNaN(kmInicial) || kmInicial < 0) {
+                res.status(400).json({ error: 'É obrigatório informar o KM Atual (Odômetro) para iniciar o histórico do veículo.' });
+                return;
+            }
+
+            // Transação: Cria o Veículo E o Histórico Inicial juntos
+            const resultado = await prisma.$transaction(async (tx) => {
+                // 1. Cria o Veículo
+                const novoVeiculo = await tx.veiculo.create({
+                    data: {
+                        placa: dados.placa,
+                        marca: dados.marca,
+                        modelo: dados.modelo,
+                        ano: dados.ano,
+                        tipoCombustivel: dados.tipoCombustivel,
+                        status: dados.status || 'ATIVO',
+                        capacidadeTanque: dados.capacidadeTanque ?? null,
+                        tipoVeiculo: dados.tipoVeiculo ?? null,
+                        vencimentoCiv: dados.vencimentoCiv ?? null,
+                        vencimentoCipp: dados.vencimentoCipp ?? null,
+                    },
+                });
+
+                // 2. Cria o Marco Zero no Histórico
+                await tx.historicoKm.create({
+                    data: {
+                        veiculoId: novoVeiculo.id,
+                        km: kmInicial,
+                        dataLeitura: new Date(),
+                        origem: 'MANUAL', // Indica cadastro inicial
+                        origemId: null
+                    }
+                });
+
+                return novoVeiculo;
             });
-            res.status(201).json(novoVeiculo);
+
+            res.status(201).json(resultado);
         } catch (error) {
             next(error);
         }
@@ -120,7 +145,7 @@ export class VeiculoController {
                 where: { id },
                 data: {
                     placa: dados.placa,
-                    marca: dados.marca, // <--- ADICIONADO
+                    marca: dados.marca,
                     modelo: dados.modelo,
                     ano: dados.ano,
                     tipoCombustivel: dados.tipoCombustivel,
