@@ -24,8 +24,6 @@ export class JornadaController {
                 return;
             }
 
-            // CORREÇÃO: Validação explícita para o TypeScript e para a Regra de Negócio
-            // Como seu Prisma exige Encarregado, barramos aqui se ele não vier no body.
             if (!encarregadoId) {
                 res.status(400).json({ error: 'É obrigatório informar um encarregado para iniciar a jornada.' });
                 return;
@@ -112,12 +110,12 @@ export class JornadaController {
                     }
                 }
 
-                // Passo B: Criar a nova jornada (Campos obrigatórios garantidos)
+                // Passo B: Criar a nova jornada
                 return await tx.jornada.create({
                     data: {
                         veiculoId,
                         operadorId,
-                        encarregadoId, // Agora o TS confia que é string devido ao 'if' acima
+                        encarregadoId,
                         dataInicio: new Date(),
                         kmInicio,
                         observacoes: observacoes ?? null,
@@ -189,6 +187,70 @@ export class JornadaController {
             });
 
             res.json(finalizada);
+        } catch (error) {
+            next(error);
+        }
+    }
+
+    // --- FUNÇÃO: UPDATE ---
+    update = async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+        try {
+            // 1. Permissão
+            if (!['ADMIN', 'ENCARREGADO'].includes(req.user?.role || '')) {
+                res.status(403).json({ error: 'Apenas gestores podem corrigir jornadas.' });
+                return;
+            }
+
+            const { id } = req.params;
+            
+            // Garantir que ID existe antes de usar
+            if (!id) {
+                res.status(400).json({ error: 'ID da jornada é obrigatório.' });
+                return;
+            }
+
+            const dados = req.body; 
+
+            // 2. Validação Lógica
+            if (dados.kmInicio !== undefined && dados.kmFim !== undefined && dados.kmFim !== null) {
+                if (dados.kmFim < dados.kmInicio) {
+                    res.status(400).json({ error: 'KM Final não pode ser menor que o Inicial.' });
+                    return;
+                }
+            }
+
+            // 3. Validação de Datas
+            if (dados.dataInicio && dados.dataFim) {
+                if (new Date(dados.dataFim) < new Date(dados.dataInicio)) {
+                    res.status(400).json({ error: 'Data Final não pode ser anterior à Data Inicial.' });
+                    return;
+                }
+            }
+
+            // Montar objeto dinamicamente
+            // Em vez de passar "undefined", nós só adicionamos a chave se ela existir.
+            const dataToUpdate: any = {};
+
+            if (dados.kmInicio !== undefined) dataToUpdate.kmInicio = dados.kmInicio;
+            if (dados.kmFim !== undefined) dataToUpdate.kmFim = dados.kmFim;
+            if (dados.observacoes !== undefined) dataToUpdate.observacoes = dados.observacoes;
+            
+            if (dados.dataInicio) {
+                dataToUpdate.dataInicio = new Date(dados.dataInicio);
+            }
+
+            if (dados.dataFim !== undefined) {
+                // Se for null, limpa a data (reabre a viagem). Se for string, converte.
+                dataToUpdate.dataFim = dados.dataFim ? new Date(dados.dataFim) : null;
+            }
+
+            // 4. Atualizar no Banco
+            const jornadaAtualizada = await prisma.jornada.update({
+                where: { id: String(id) }, // Forçamos String(id) para calar o TypeScript
+                data: dataToUpdate
+            });
+
+            res.json(jornadaAtualizada);
         } catch (error) {
             next(error);
         }
