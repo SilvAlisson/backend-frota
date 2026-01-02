@@ -27,6 +27,7 @@ export class JornadaController {
             const { veiculoId, encarregadoId, kmInicio: kmDigitado, observacoes, fotoInicioUrl } = req.body as IniciarJornadaData;
             const operadorId = req.user?.userId;
 
+            // [MERGE] Mantida verificação mais segura da v3.0
             if (!operadorId || !encarregadoId) {
                 res.status(401).json({ error: 'Usuário não autenticado ou encarregado não informado.' });
                 return;
@@ -97,6 +98,7 @@ export class JornadaController {
                     }
                 }
 
+                // [MERGE] Mantida lógica da v3.0: Fecha rendições anteriores (Feature importante)
                 // 3. FECHAR RENDIÇÕES ANTERIORES DO VEÍCULO (Se houver jornada "esquecida" aberta)
                 await tx.jornada.updateMany({
                     where: { veiculoId, dataFim: null },
@@ -229,9 +231,72 @@ export class JornadaController {
         }
     }
 
-    /**
-     * LISTAGENS
-     */
+    // [MERGE] Mantido o método UPDATE da branch main para permitir correções por gestores
+    // --- FUNÇÃO: UPDATE (Edição administrativa) ---
+    update = async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+        try {
+            // 1. Permissão
+            if (!['ADMIN', 'ENCARREGADO'].includes(req.user?.role || '')) {
+                res.status(403).json({ error: 'Apenas gestores podem corrigir jornadas.' });
+                return;
+            }
+
+            const { id } = req.params;
+
+            // Garantir que ID existe antes de usar
+            if (!id) {
+                res.status(400).json({ error: 'ID da jornada é obrigatório.' });
+                return;
+            }
+
+            const dados = req.body;
+
+            // 2. Validação Lógica
+            if (dados.kmInicio !== undefined && dados.kmFim !== undefined && dados.kmFim !== null) {
+                if (dados.kmFim < dados.kmInicio) {
+                    res.status(400).json({ error: 'KM Final não pode ser menor que o Inicial.' });
+                    return;
+                }
+            }
+
+            // 3. Validação de Datas
+            if (dados.dataInicio && dados.dataFim) {
+                if (new Date(dados.dataFim) < new Date(dados.dataInicio)) {
+                    res.status(400).json({ error: 'Data Final não pode ser anterior à Data Inicial.' });
+                    return;
+                }
+            }
+
+            // Montar objeto dinamicamente
+            // Em vez de passar "undefined", nós só adicionamos a chave se ela existir.
+            const dataToUpdate: any = {};
+
+            if (dados.kmInicio !== undefined) dataToUpdate.kmInicio = dados.kmInicio;
+            if (dados.kmFim !== undefined) dataToUpdate.kmFim = dados.kmFim;
+            if (dados.observacoes !== undefined) dataToUpdate.observacoes = dados.observacoes;
+
+            if (dados.dataInicio) {
+                dataToUpdate.dataInicio = new Date(dados.dataInicio);
+            }
+
+            if (dados.dataFim !== undefined) {
+                // Se for null, limpa a data (reabre a viagem). Se for string, converte.
+                dataToUpdate.dataFim = dados.dataFim ? new Date(dados.dataFim) : null;
+            }
+
+            // 4. Atualizar no Banco
+            const jornadaAtualizada = await prisma.jornada.update({
+                where: { id: String(id) }, // Forçamos String(id) para calar o TypeScript
+                data: dataToUpdate
+            });
+
+            res.json(jornadaAtualizada);
+        } catch (error) {
+            next(error);
+        }
+    }
+
+    // --- LISTAGENS ---
     listarAbertas = async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
         try {
             const list = await prisma.jornada.findMany({
