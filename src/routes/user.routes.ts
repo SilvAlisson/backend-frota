@@ -11,8 +11,7 @@ const userController = new UserController();
 router.use(authenticateToken);
 
 // CREATE
-
-router.post('/',
+router.post('/register',
     validate(registerUserSchema),
     userController.create
 );
@@ -24,7 +23,6 @@ router.get('/', userController.list);
 router.get('/:id', userController.getById);
 
 // UPDATE
-// Nota: Se quiser validar o update, crie um 'updateUserSchema' no Zod depois.
 router.put('/:id', userController.update);
 
 // DELETE
