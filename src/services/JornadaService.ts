@@ -3,7 +3,7 @@ import { prisma } from '../lib/prisma';
 // Configurações
 const MAX_RETRIES = 3;
 const BATCH_SIZE = 50;
-const HORAS_TOLERANCIA = 17; // Reduzi para 17h (turno + descanso) para ser mais ágil
+const HORAS_TOLERANCIA = 17;
 const EMAIL_BOT = 'sistema@frota.ghost';
 
 const FANTASMAS = [
@@ -26,20 +26,22 @@ export class JornadaService {
                 where: {
                     veiculoId,
                     dataFim: { gte: trintaDiasAtras },
-                    kmFim: { not: null },
-                    kmInicio: { not: null }
+                    // [CORREÇÃO] gte: 0 garante que não é null e é um número válido para o TS
+                    kmFim: { gte: 0 },
+                    kmInicio: { gte: 0 } // <-- Alterado de { not: null } para { gte: 0 }
                 },
                 select: { kmInicio: true, kmFim: true },
-                take: 10 // Pega apenas os últimos 10 para ser rápido
+                take: 10
             });
 
-            if (historico.length < 3) return 100; // Valor padrão conservador
+            if (historico.length < 3) return 100;
 
             let totalKm = 0;
             let contagemValida = 0;
 
             for (const j of historico) {
-                if (j.kmFim && j.kmInicio && j.kmFim > j.kmInicio) {
+                // Verificação de tipo em tempo de execução para segurança extra
+                if (typeof j.kmFim === 'number' && typeof j.kmInicio === 'number' && j.kmFim > j.kmInicio) {
                     totalKm += (j.kmFim - j.kmInicio);
                     contagemValida++;
                 }
@@ -59,7 +61,6 @@ export class JornadaService {
     static async fecharJornadasVencidas() {
         console.log('🛡️ [Cron Blindado] Iniciando Auditoria...');
 
-        // 1. Busca o ID do Bot (Uma única vez por execução)
         const botUser = await prisma.user.findUnique({ where: { email: EMAIL_BOT } });
 
         if (!botUser) {
@@ -70,7 +71,6 @@ export class JornadaService {
         const dataLimite = new Date();
         dataLimite.setHours(dataLimite.getHours() - HORAS_TOLERANCIA);
 
-        // 2. Busca em Lote (Batching)
         const jornadasVencidas = await prisma.jornada.findMany({
             where: {
                 dataInicio: { lt: dataLimite },
@@ -90,13 +90,9 @@ export class JornadaService {
 
         for (const jornada of jornadasVencidas) {
             try {
-                // Passamos o ID do Bot para a função de processamento
                 await this.processarJornadaUnica(jornada, botUser.id);
-
             } catch (error: any) {
                 console.error(`❌ [Cron] Falha na jornada ID ${jornada.id}: ${error.message}`);
-
-                // ATUALIZAÇÃO DE FALHA (DLQ)
                 await prisma.jornada.update({
                     where: { id: jornada.id },
                     data: {
@@ -114,7 +110,6 @@ export class JornadaService {
     private static async processarJornadaUnica(jornada: any, botId: string) {
         await prisma.$transaction(async (tx) => {
 
-            // Busca Próximo Ponto Real
             const proximoRegistro = await tx.historicoKm.findFirst({
                 where: {
                     veiculoId: jornada.veiculoId,
@@ -124,7 +119,6 @@ export class JornadaService {
                 orderBy: { dataLeitura: 'asc' }
             });
 
-            // CENÁRIO 1: Sem dados futuros (Apenas fecha)
             if (!proximoRegistro) {
                 await tx.jornada.update({
                     where: { id: jornada.id },
@@ -139,16 +133,14 @@ export class JornadaService {
                 return;
             }
 
-            // Validação de Integridade
             if (proximoRegistro.km < jornada.kmInicio) {
                 throw new Error(`Inconsistência Crítica: KM Futuro (${proximoRegistro.km}) menor que Início (${jornada.kmInicio})`);
             }
 
             const kmNaoRegistrado = proximoRegistro.km - jornada.kmInicio;
             const mediaDiaria = await JornadaService.calcularMediaDiariaHistorica(jornada.veiculoId);
-            const limiteAceitavel = (mediaDiaria * 1.2) + 50; // Margem de tolerância
+            const limiteAceitavel = (mediaDiaria * 1.2) + 50;
 
-            // CENÁRIO 2: Erro pequeno (Assume que foi erro de digitação/esquecimento simples)
             if (kmNaoRegistrado <= limiteAceitavel) {
                 await tx.jornada.update({
                     where: { id: jornada.id },
@@ -163,11 +155,8 @@ export class JornadaService {
                 return;
             }
 
-            // CENÁRIO 3: Geração de Fantasmas (Usa o BOT)
-
-            // 3.1 Fecha a jornada original do HUMANO com 0 KM de ganho (para não ganhar produtividade falsa)
             const dataFimJornadaOriginal = new Date(jornada.dataInicio);
-            dataFimJornadaOriginal.setHours(dataFimJornadaOriginal.getHours() + 9); // Teto de 9h de trabalho
+            dataFimJornadaOriginal.setHours(dataFimJornadaOriginal.getHours() + 9);
 
             const dataFechamentoReal = dataFimJornadaOriginal < proximoRegistro.dataLeitura
                 ? dataFimJornadaOriginal
@@ -177,14 +166,13 @@ export class JornadaService {
                 where: { id: jornada.id },
                 data: {
                     dataFim: dataFechamentoReal,
-                    kmFim: jornada.kmInicio, // Humano não rodou esse KM oficialmente
+                    kmFim: jornada.kmInicio,
                     observacoes: (jornada.observacoes || '') + ` [AUTO: Gap de ${kmNaoRegistrado}km detectado. Fantasmas assumiram.]`,
                     tentativasAutoFechamento: 0,
                     erroAutoFechamento: null
                 }
             });
 
-            // 3.2 Loop de Fantasmas
             let kmRestante = kmNaoRegistrado;
             let ponteiroKm = jornada.kmInicio;
             let ponteiroData = new Date(dataFechamentoReal);
@@ -196,10 +184,10 @@ export class JornadaService {
                 if (ponteiroData >= proximoRegistro.dataLeitura) break;
 
                 let kmDeste = Math.min(mediaDiaria, kmRestante);
-                if ((kmRestante - kmDeste) < 20) kmDeste = kmRestante; // Evita resíduos pequenos
+                if ((kmRestante - kmDeste) < 20) kmDeste = kmRestante;
 
                 let fimDeste = new Date(ponteiroData);
-                fimDeste.setHours(fimDeste.getHours() + 8); // Jornada padrão do fantasma
+                fimDeste.setHours(fimDeste.getHours() + 8);
 
                 if (fimDeste > proximoRegistro.dataLeitura) fimDeste = proximoRegistro.dataLeitura;
 
@@ -208,8 +196,8 @@ export class JornadaService {
                 await tx.jornada.create({
                     data: {
                         veiculoId: jornada.veiculoId,
-                        operadorId: botId, // <--- AQUI: O BOT ASSUME
-                        encarregadoId: jornada.encarregadoId, // Mantém o encarregado original para rastreio
+                        operadorId: botId,
+                        encarregadoId: jornada.encarregadoId,
                         dataInicio: ponteiroData,
                         dataFim: fimDeste,
                         kmInicio: ponteiroKm,
@@ -226,12 +214,11 @@ export class JornadaService {
                 contadorSeguranca++;
             }
 
-            // 3.3 Fantasma de Ajuste Final (Sobra de tempo/km)
             if (kmRestante > 0) {
                 await tx.jornada.create({
                     data: {
                         veiculoId: jornada.veiculoId,
-                        operadorId: botId, // <--- AQUI: O BOT ASSUME
+                        operadorId: botId,
                         encarregadoId: jornada.encarregadoId,
                         dataInicio: ponteiroData < proximoRegistro.dataLeitura ? ponteiroData : proximoRegistro.dataLeitura,
                         dataFim: proximoRegistro.dataLeitura,

@@ -27,7 +27,6 @@ export class JornadaController {
             const { veiculoId, encarregadoId, kmInicio: kmDigitado, observacoes, fotoInicioUrl } = req.body as IniciarJornadaData;
             const operadorId = req.user?.userId;
 
-            // [MERGE] Mantida verificação mais segura da v3.0
             if (!operadorId || !encarregadoId) {
                 res.status(401).json({ error: 'Usuário não autenticado ou encarregado não informado.' });
                 return;
@@ -93,13 +92,11 @@ export class JornadaController {
                                 observacoes: `[AJUSTE AUTOMÁTICO] Veículo sem registro por ${diasInativos} dias. KM rateado.`
                             });
                         }
-                        // Inserção em lote para performance
                         await tx.jornada.createMany({ data: ajustes });
                     }
                 }
 
-                // [MERGE] Mantida lógica da v3.0: Fecha rendições anteriores (Feature importante)
-                // 3. FECHAR RENDIÇÕES ANTERIORES DO VEÍCULO (Se houver jornada "esquecida" aberta)
+                // 3. FECHAR RENDIÇÕES ANTERIORES
                 await tx.jornada.updateMany({
                     where: { veiculoId, dataFim: null },
                     data: {
@@ -135,7 +132,6 @@ export class JornadaController {
 
     /**
      * FINALIZAR JORNADA
-     * Inclui: Auditoria OCR, Validação de Velocidade Física e Histórico de KM
      */
     finalizar = async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
         try {
@@ -153,25 +149,23 @@ export class JornadaController {
                 return;
             }
 
-            // Cálculo de tempo para validação de velocidade
             const tempoDecorridoMs = new Date().getTime() - new Date(jornada.dataInicio).getTime();
             const horasDecurso = Math.max(tempoDecorridoMs / (1000 * 60 * 60), 0.1);
 
             let kmFimProcessado = kmDigitado;
 
-            // 1. AUDITORIA OCR (Se houver foto)
+            // 1. AUDITORIA OCR
             if (fotoFimUrl) {
                 const kmLidoOCR = await OcrService.lerOdometro(fotoFimUrl);
                 if (kmLidoOCR) {
                     const escalaOCR = Math.floor(kmLidoOCR / 10);
-                    // Se o OCR detectar que o valor "corrigido" é quase igual ao digitado
                     if (Math.abs(escalaOCR - kmDigitado) < 5) {
                         kmFimProcessado = escalaOCR;
                     }
                 }
             }
 
-            // 2. VALIDAÇÃO POR VELOCIDADE MÉDIA (Trava Física)
+            // 2. VALIDAÇÃO POR VELOCIDADE MÉDIA
             let velocidade = (kmFimProcessado - jornada.kmInicio) / horasDecurso;
 
             if (velocidade > 150) {
@@ -182,7 +176,7 @@ export class JornadaController {
                     kmFimProcessado = kmCorrigido;
                 } else {
                     res.status(400).json({
-                        error: `KM Final impossível para o tempo de jornada (${velocidade.toFixed(0)} km/h). Verifique o odômetro.`
+                        error: `KM Final impossível (${velocidade.toFixed(0)} km/h). Verifique o odômetro.`
                     });
                     return;
                 }
@@ -206,13 +200,11 @@ export class JornadaController {
                     },
                 });
 
-                // Sincroniza o último KM no cadastro do Veículo
                 await tx.veiculo.update({
                     where: { id: jornada.veiculoId },
                     data: { ultimoKm: kmFimProcessado }
                 });
 
-                // Registra no histórico de auditoria de KM
                 await tx.historicoKm.create({
                     data: {
                         km: kmFimProcessado,
@@ -231,19 +223,15 @@ export class JornadaController {
         }
     }
 
-    // [MERGE] Mantido o método UPDATE da branch main para permitir correções por gestores
     // --- FUNÇÃO: UPDATE (Edição administrativa) ---
     update = async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
         try {
-            // 1. Permissão
             if (!['ADMIN', 'ENCARREGADO'].includes(req.user?.role || '')) {
                 res.status(403).json({ error: 'Apenas gestores podem corrigir jornadas.' });
                 return;
             }
 
             const { id } = req.params;
-
-            // Garantir que ID existe antes de usar
             if (!id) {
                 res.status(400).json({ error: 'ID da jornada é obrigatório.' });
                 return;
@@ -251,7 +239,7 @@ export class JornadaController {
 
             const dados = req.body;
 
-            // 2. Validação Lógica
+            // Validações básicas
             if (dados.kmInicio !== undefined && dados.kmFim !== undefined && dados.kmFim !== null) {
                 if (dados.kmFim < dados.kmInicio) {
                     res.status(400).json({ error: 'KM Final não pode ser menor que o Inicial.' });
@@ -259,7 +247,6 @@ export class JornadaController {
                 }
             }
 
-            // 3. Validação de Datas
             if (dados.dataInicio && dados.dataFim) {
                 if (new Date(dados.dataFim) < new Date(dados.dataInicio)) {
                     res.status(400).json({ error: 'Data Final não pode ser anterior à Data Inicial.' });
@@ -267,26 +254,15 @@ export class JornadaController {
                 }
             }
 
-            // Montar objeto dinamicamente
-            // Em vez de passar "undefined", nós só adicionamos a chave se ela existir.
             const dataToUpdate: any = {};
-
             if (dados.kmInicio !== undefined) dataToUpdate.kmInicio = dados.kmInicio;
             if (dados.kmFim !== undefined) dataToUpdate.kmFim = dados.kmFim;
             if (dados.observacoes !== undefined) dataToUpdate.observacoes = dados.observacoes;
+            if (dados.dataInicio) dataToUpdate.dataInicio = new Date(dados.dataInicio);
+            if (dados.dataFim !== undefined) dataToUpdate.dataFim = dados.dataFim ? new Date(dados.dataFim) : null;
 
-            if (dados.dataInicio) {
-                dataToUpdate.dataInicio = new Date(dados.dataInicio);
-            }
-
-            if (dados.dataFim !== undefined) {
-                // Se for null, limpa a data (reabre a viagem). Se for string, converte.
-                dataToUpdate.dataFim = dados.dataFim ? new Date(dados.dataFim) : null;
-            }
-
-            // 4. Atualizar no Banco
             const jornadaAtualizada = await prisma.jornada.update({
-                where: { id: String(id) }, // Forçamos String(id) para calar o TypeScript
+                where: { id: String(id) },
                 data: dataToUpdate
             });
 
