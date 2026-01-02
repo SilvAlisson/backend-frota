@@ -38,9 +38,10 @@ export class UserController {
             const salt = await bcrypt.genSalt(10);
             const hashedPassword = await bcrypt.hash(dados.password, salt);
 
-            // 4. Criação no Banco
+            // 4. Criação no Banco (CORRIGIDO: Usa profile aninhado)
             const novoUser = await prisma.user.create({
                 data: {
+                    // Dados da tabela USER
                     nome: dados.nome,
                     email: dados.email,
                     password: hashedPassword,
@@ -48,11 +49,20 @@ export class UserController {
                     matricula: dados.matricula ?? null,
                     fotoUrl: dados.fotoUrl ?? null,
                     cargoId: dados.cargoId ?? null,
-                    cnhNumero: dados.cnhNumero ?? null,
-                    cnhCategoria: dados.cnhCategoria ?? null,
-                    cnhValidade: dados.cnhValidade ? new Date(dados.cnhValidade) : null,
-                    dataAdmissao: dados.dataAdmissao ? new Date(dados.dataAdmissao) : null,
+
+                    // Dados da tabela COLABORADOR_PROFILE (Nested Write)
+                    profile: {
+                        create: {
+                            cnhNumero: dados.cnhNumero ?? null,
+                            cnhCategoria: dados.cnhCategoria ?? null,
+                            cnhValidade: dados.cnhValidade ? new Date(dados.cnhValidade) : null,
+                            dataAdmissao: dados.dataAdmissao ? new Date(dados.dataAdmissao) : null,
+                        }
+                    }
                 },
+                include: {
+                    profile: true // Retorna o perfil criado para confirmação
+                }
             });
 
             // 5. Retorno Seguro (Sem senha)
@@ -74,6 +84,7 @@ export class UserController {
                     role: true,
                     matricula: true,
                     fotoUrl: true,
+                    loginToken: true, // [CORREÇÃO] Adicionado para o QR Code aparecer na lista
                     cargo: { select: { nome: true } }
                 },
                 orderBy: { nome: 'asc' }
@@ -93,15 +104,17 @@ export class UserController {
 
             const { id } = req.params;
 
-            // CORREÇÃO: Verificação explícita para o TypeScript
             if (!id) {
                 res.status(400).json({ error: 'ID não fornecido.' });
                 return;
             }
 
             const user = await prisma.user.findUnique({
-                where: { id }, // Agora 'id' é garantidamente string
-                include: { cargo: true }
+                where: { id },
+                include: {
+                    cargo: true,
+                    profile: true // Inclui dados sensíveis (CNH, Admissão)
+                }
             });
 
             if (!user) {
@@ -126,7 +139,6 @@ export class UserController {
 
             const { id } = req.params;
 
-            // CORREÇÃO: Verificação explícita
             if (!id) {
                 res.status(400).json({ error: 'ID não fornecido.' });
                 return;
@@ -151,30 +163,56 @@ export class UserController {
                 }
             }
 
-            // Preparar objeto de update
-            const dataToUpdate: any = {
+            // Preparar objeto de update para o USUÁRIO (Apenas campos da tabela User)
+            const dataToUpdateUser: any = {
                 nome,
                 email,
                 role,
                 matricula: matricula || null,
                 fotoUrl: fotoUrl || null,
                 cargoId: cargoId || null,
+            };
+
+            // Se tiver senha nova
+            if (password && password.trim() !== '') {
+                dataToUpdateUser.password = await bcrypt.hash(password, 10);
+            }
+
+            // Limpa undefined
+            Object.keys(dataToUpdateUser).forEach(key => dataToUpdateUser[key] === undefined && delete dataToUpdateUser[key]);
+
+            // Dados para o PERFIL (ColaboradorProfile)
+            const profileData = {
                 cnhNumero: cnhNumero || null,
                 cnhCategoria: cnhCategoria || null,
                 cnhValidade: cnhValidade ? new Date(cnhValidade) : null,
                 dataAdmissao: dataAdmissao ? new Date(dataAdmissao) : null
             };
 
-            Object.keys(dataToUpdate).forEach(key => dataToUpdate[key] === undefined && delete dataToUpdate[key]);
-
-            if (password && password.trim() !== '') {
-                dataToUpdate.password = await bcrypt.hash(password, 10);
-            }
-
+            // Executa o Update com Nested Update no Profile
             const updated = await prisma.user.update({
                 where: { id },
-                data: dataToUpdate,
-                select: { id: true, nome: true, email: true, role: true, matricula: true, fotoUrl: true }
+                data: {
+                    ...dataToUpdateUser,
+                    // Lógica inteligente para o Perfil:
+                    // Se o usuário já tem perfil, atualiza. Se não tem (ex: Admin antigo), cria.
+                    profile: {
+                        upsert: {
+                            create: profileData,
+                            update: profileData
+                        }
+                    }
+                },
+                select: {
+                    id: true,
+                    nome: true,
+                    email: true,
+                    role: true,
+                    matricula: true,
+                    fotoUrl: true,
+                    loginToken: true, // [CORREÇÃO] Adicionado para manter o token após edição
+                    profile: true // Retorna o perfil atualizado
+                }
             });
 
             res.json(updated);
@@ -193,7 +231,6 @@ export class UserController {
 
             const { id } = req.params;
 
-            // CORREÇÃO: Verificação explícita
             if (!id) {
                 res.status(400).json({ error: 'ID não fornecido.' });
                 return;

@@ -21,6 +21,18 @@ model ConfiguracaoSistema {
   updatedAt              DateTime @updatedAt
 }
 
+// Tabela normalizada para dados sensíveis de RH (1:1 com User)
+model ColaboradorProfile {
+  id           String    @id @default(cuid())
+  cnhNumero    String?
+  cnhCategoria String?
+  cnhValidade  DateTime?
+  dataAdmissao DateTime?
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId String @unique
+}
+
 model Treinamento {
   id             String    @id @default(cuid())
   nome           String
@@ -67,6 +79,7 @@ enum UserRole {
   ADMIN
   RH
   COORDENADOR
+  BOT // Role para automações (Fantasmas)
 }
 
 model User {
@@ -78,13 +91,11 @@ model User {
   role      UserRole @default(OPERADOR)
   fotoUrl   String?
   
-  cargo   Cargo? @relation(fields: [cargoId], references: [id])
+  cargo   Cargo?  @relation(fields: [cargoId], references: [id])
   cargoId String?
   
-  cnhNumero    String?
-  cnhCategoria String?
-  cnhValidade  DateTime? 
-  dataAdmissao DateTime?
+  // Relacionamento com dados sensíveis de RH
+  profile ColaboradorProfile?
 
   loginToken String? @unique
 
@@ -102,20 +113,36 @@ model User {
 // 3. ATIVOS (Veículos e Catálogo)
 // ==========================================================
 
+enum TipoVeiculo {
+  POLIGUINDASTE
+  VACUO
+  CARRETA
+  UTILITARIO
+  CAMINHAO_PIPA
+  OUTRO
+}
+
 model Veiculo {
   id               String          @id @default(cuid())
   placa            String          @unique
   marca            String?
   modelo           String
   ano              Int
-  tipoVeiculo      String?         
+  
+  // ⚠️ MUDANÇA DE SEGURANÇA:
+  // Voltamos para String para não apagar os dados existentes na migração.
+  // tipoVeiculo      TipoVeiculo     @default(OUTRO) 
+  tipoVeiculo      String?
+
   tipoCombustivel  TipoCombustivel @default(DIESEL_S10)
+  
   capacidadeTanque Float?
+  ultimoKm         Float?          @default(0)
   
   vencimentoCiv    DateTime?
   vencimentoCipp   DateTime?
   
-  // NOVO: Status operacional para dashboard (Ex: Ativo, Na Oficina)
+  // Status operacional para dashboard (Ex: Ativo, Na Oficina)
   status           StatusVeiculo   @default(ATIVO) 
   
   createdAt DateTime @default(now())
@@ -125,7 +152,7 @@ model Veiculo {
   abastecimentos     Abastecimento[]
   ordensServico      OrdemServico[]
   planosManutencao   PlanoManutencao[]
-  historicoKm        HistoricoKm[]    // <--- NOVO: Rastreabilidade total de KM
+  historicoKm        HistoricoKm[]
 }
 
 model Produto {
@@ -135,28 +162,19 @@ model Produto {
   unidadeMedida String      @default("Litro")
   
   // SEM ESTOQUE: Funciona apenas como catálogo de itens/serviços
-  
   createdAt     DateTime    @default(now())
 
   itensAbastecimento ItemAbastecimento[]
   itensOrdemServico  ItemOrdemServico[]
 }
 
-enum TipoFornecedor {
-  POSTO
-  OFICINA
-  LAVA_JATO
-  SEGURADORA
-  OUTROS
-}
-
 model Fornecedor {
-  id        String   @id @default(cuid())
-  nome      String   @unique
-  cnpj      String?  @unique
+  id        String         @id @default(cuid())
+  nome      String         @unique
+  cnpj      String?        @unique
   tipo      TipoFornecedor @default(OUTROS)
   
-  createdAt DateTime @default(now())
+  createdAt DateTime       @default(now())
 
   abastecimentos Abastecimento[]
   ordensServico  OrdemServico[]
@@ -166,14 +184,14 @@ model Fornecedor {
 // 4. OPERACIONAL & INTELIGÊNCIA
 // ==========================================================
 
-// NOVO: Tabela para inteligência de frota (Média de rodagem, previsão de revisão)
+// Tabela para rastreabilidade e auditoria de KM
 model HistoricoKm {
   id           String   @id @default(cuid())
   km           Float
   dataLeitura  DateTime @default(now())
   
   // Quem gerou esse KM? (Rastreabilidade)
-  origem       String   // "JORNADA", "ABASTECIMENTO", "MANUTENCAO", "MANUAL"
+  origem       String   // "JORNADA", "ABASTECIMENTO", "MANUTENCAO", "MANUAL", "SISTEMA_AUTO"
   origemId     String?  // ID do registro que gerou
   
   veiculo      Veiculo  @relation(fields: [veiculoId], references: [id])
@@ -181,16 +199,22 @@ model HistoricoKm {
 }
 
 model Jornada { 
-  id          String    @id @default(cuid())
-  dataInicio  DateTime
-  dataFim     DateTime?
-  kmInicio    Float
-  kmFim       Float?
+  id            String    @id @default(cuid())
+  dataInicio    DateTime
+  dataFim       DateTime?
+  kmInicio      Float
+  kmFim         Float?
   
   fotoInicioUrl String?
   fotoFimUrl    String?
-  observacoes   String?
-  
+  observacoes   String?   // Usado para identificar "Fantasmas" (ex: contém emoji 👻)
+
+  // =========================================================
+  // NOVOS CAMPOS PARA O CRON BLINDADO (Dead Letter Queue)
+  // =========================================================
+  tentativasAutoFechamento Int     @default(0)
+  erroAutoFechamento       String? // Guarda o motivo da falha (ex: "Inconsistência de KM")
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -202,6 +226,9 @@ model Jornada {
   
   encarregado   User    @relation("EncarregadoJornada", fields: [encarregadoId], references: [id])
   encarregadoId String
+
+  // Opcional: Índice para deixar a busca do Cron instantânea
+  @@index([dataFim, tentativasAutoFechamento])
 }
 
 model Abastecimento {
@@ -223,17 +250,17 @@ model Abastecimento {
   operadorId    String
   
   fornecedor    Fornecedor @relation(fields: [fornecedorId], references: [id])
-  fornecedorId String
+  fornecedorId  String
   
   itens         ItemAbastecimento[]
 }
 
 model ItemAbastecimento {
-  id              String   @id @default(cuid())
+  id              String        @id @default(cuid())
   quantidade      Float
-  valorPorUnidade Decimal  @db.Decimal(10, 2)
-  valorTotal      Decimal  @db.Decimal(10, 2)
-  createdAt       DateTime @default(now())
+  valorPorUnidade Decimal       @db.Decimal(10, 2)
+  valorTotal      Decimal       @db.Decimal(10, 2)
+  createdAt       DateTime      @default(now())
 
   abastecimento   Abastecimento @relation(fields: [abastecimentoId], references: [id])
   abastecimentoId String
@@ -255,28 +282,26 @@ model OrdemServico {
   custoTotal         Decimal        @db.Decimal(10, 2)
   
   tipo               TipoManutencao
-  
-  // NOVO: Controle de status (Aberto/Fechado)
   status             StatusOS       @default(CONCLUIDA) 
   
   observacoes        String?
   fotoComprovanteUrl String?
   createdAt          DateTime       @default(now())
 
-  veiculo        Veiculo?           @relation(fields: [veiculoId], references: [id])
-  fornecedor     Fornecedor         @relation(fields: [fornecedorId], references: [id])
+  veiculo        Veiculo?       @relation(fields: [veiculoId], references: [id])
+  fornecedor     Fornecedor     @relation(fields: [fornecedorId], references: [id])
   fornecedorId   String
-  encarregado    User               @relation(fields: [encarregadoId], references: [id])
+  encarregado    User           @relation(fields: [encarregadoId], references: [id])
   encarregadoId  String
   
   itens          ItemOrdemServico[]
 }
 
 model ItemOrdemServico {
-  id              String  @id @default(cuid())
+  id              String       @id @default(cuid())
   quantidade      Float
-  valorPorUnidade Decimal @db.Decimal(10, 2)
-  valorTotal      Decimal @db.Decimal(10, 2)
+  valorPorUnidade Decimal      @db.Decimal(10, 2)
+  valorTotal      Decimal      @db.Decimal(10, 2)
   
   ordemServico    OrdemServico @relation(fields: [ordemServicoId], references: [id])
   ordemServicoId  String
@@ -286,7 +311,7 @@ model ItemOrdemServico {
 }
 
 model PlanoManutencao {
-  id                    String   @id @default(cuid())
+  id                    String                  @id @default(cuid())
   descricao             String                  
   tipoIntervalo         TipoIntervaloManutencao
   valorIntervalo        Float                 
@@ -309,9 +334,9 @@ enum StatusVeiculo {
 }
 
 enum StatusOS {
-  PENDENTE      // Criada, aguardando aprovação/execução
-  EM_ANDAMENTO  // O carro está na oficina
-  CONCLUIDA     // Serviço feito e pago
+  PENDENTE      
+  EM_ANDAMENTO  
+  CONCLUIDA     
   CANCELADA
 }
 
@@ -329,6 +354,14 @@ enum TipoCombustivel {
   GASOLINA_COMUM
   ETANOL
   GNV
+}
+
+enum TipoFornecedor {
+  POSTO
+  OFICINA
+  LAVA_JATO
+  SEGURADORA
+  OUTROS
 }
 
 enum TipoManutencao {

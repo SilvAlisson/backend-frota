@@ -15,5 +15,6 @@ router.get('/', veiculoController.list);
 router.get('/:id', veiculoController.getById);
 router.put('/:id', validate(veiculoSchema), veiculoController.update);
 router.delete('/:id', veiculoController.delete);
+router.get('/:id/detalhes', veiculoController.getDetalhes);
 
 export default router;

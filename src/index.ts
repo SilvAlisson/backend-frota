@@ -74,7 +74,7 @@ app.use('/api/treinamentos', treinamentoRoutes);
 app.use('/api/relatorios', relatorioRoutes);
 
 // Health Check (Monitoramento)
-app.get('/health', (req, res) => {
+app.get('/api/health', (req, res) => {
   res.json({ status: 'UP', timestamp: new Date() });
 });
 
@@ -82,8 +82,30 @@ app.get('/health', (req, res) => {
 app.use(errorHandler);
 
 // ================== CRON JOBS ==================
+// Executa no minuto 0 de cada hora (ex: 08:00, 09:00, 10:00...)
 cron.schedule('0 * * * *', async () => {
-  await JornadaService.fecharJornadasVencidas();
+  const agora = new Date().toLocaleString('pt-BR');
+  console.log(`⏰ [CRON] Disparando verificação de jornadas às ${agora}...`);
+
+  try {
+    await JornadaService.fecharJornadasVencidas();
+    // Não precisa de log de sucesso aqui se o Service já loga, 
+    // mas garante que a chamada async terminou.
+  } catch (error) {
+    // Esse catch é uma redundância de segurança caso o Service falhe fatalmente
+    console.error('❌ [CRON] Falha crítica ao tentar executar o job:', error);
+  }
+});
+
+// ROTA TEMPORÁRIA DE TESTE (Remova antes de ir para produção oficial)
+app.get('/api/test-cron', async (req, res) => {
+  console.log('🧪 Forçando execução do Cron via API...');
+  try {
+    await JornadaService.fecharJornadasVencidas();
+    res.json({ message: 'Robô executado com sucesso! Verifique os logs do console.' });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
 });
 
 // ================== START SERVER ==================
