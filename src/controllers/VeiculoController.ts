@@ -9,9 +9,9 @@ import { veiculoSchema } from '../schemas/veiculo.schemas';
 const formatDateToInput = (date: Date | null | undefined): string | null => {
     if (!date) return null;
     const d = new Date(date);
-    // Garante que não haja perda de dia por fuso horário ao extrair Y-M-D
     const dataCorrigida = new Date(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
-    return dataCorrigida.toISOString().split('T')[0] as string;
+    const result = dataCorrigida.toISOString().split('T')[0];
+    return result || null;
 };
 
 // Extração do tipo do Zod + kmAtual que não está no schema do banco, mas vem no body
@@ -20,28 +20,79 @@ type VeiculoData = z.infer<typeof veiculoSchema>['body'] & { kmAtual?: number };
 export class VeiculoController {
 
     /**
-     * Cria um novo veículo.
-     * Agora inclui 'marca' e inicializa 'kmAtual' no Histórico via Transação.
+     * BUSCA DETALHES CONSOLIDADOS (Prontuário do Veículo)
+     * Retorna dados cadastrais, métricas de custo e históricos recentes.
+     */
+    getDetalhes = async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+        try {
+            const { id } = req.params;
+            if (!id) return res.status(400).json({ error: 'ID do veículo é obrigatório.' });
+
+            const veiculo = await prisma.veiculo.findUnique({
+                where: { id: id as string },
+                include: {
+                    jornadas: { orderBy: { dataInicio: 'desc' }, take: 5, include: { operador: { select: { nome: true } } } },
+                    abastecimentos: { orderBy: { dataHora: 'desc' }, take: 5, include: { fornecedor: { select: { nome: true } } } },
+                    // Mantenha o nome que estiver no seu schema.prisma (manutencoes ou ordensServico)
+                    // Se der erro, verifique o seu model 'Veiculo' no prisma.schema
+                    ordensServico: { orderBy: { data: 'desc' }, take: 5, include: { fornecedor: { select: { nome: true } } } },
+                    planosManutencao: true
+                }
+            });
+
+            if (!veiculo) return res.status(404).json({ error: 'Veículo não encontrado.' });
+
+            const [manutencaoTotal, abastecimentoTotal] = await Promise.all([
+                prisma.ordemServico.aggregate({ _sum: { custoTotal: true }, where: { veiculoId: id } }),
+                prisma.itemAbastecimento.aggregate({
+                    _sum: { valorTotal: true, quantidade: true },
+                    where: { abastecimento: { veiculoId: id }, produto: { tipo: 'COMBUSTIVEL' } }
+                })
+            ]);
+
+            const inicioMes = new Date();
+            inicioMes.setDate(1);
+            inicioMes.setHours(0, 0, 0, 0);
+
+            const jornadasMes = await prisma.jornada.findMany({
+                where: { veiculoId: id, dataInicio: { gte: inicioMes }, kmFim: { not: null } },
+                select: { kmInicio: true, kmFim: true }
+            });
+
+            const kmRodadoMes = jornadasMes.reduce((acc, j) => acc + ((j.kmFim ?? 0) - j.kmInicio), 0);
+            const litrosTotal = Number(abastecimentoTotal._sum.quantidade || 0);
+
+            res.json({
+                ...veiculo,
+                resumoFinanceiro: {
+                    totalGastoManutencao: Number(manutencaoTotal._sum.custoTotal || 0),
+                    totalGastoCombustivel: Number(abastecimentoTotal._sum.valorTotal || 0),
+                    mediaConsumoGeral: litrosTotal > 0 ? (kmRodadoMes / litrosTotal) : 0,
+                    kmRodadoMesAtual: kmRodadoMes
+                }
+            });
+        } catch (error) { next(error); }
+    }
+
+    /**
+     * Cria um novo veículo e inicializa o histórico de KM via Transação.
      */
     create = async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
         try {
             if (req.user?.role !== 'ADMIN') {
-                res.status(403).json({ error: 'Acesso negado. Apenas administradores podem gerir a frota.' });
+                res.status(403).json({ error: 'Acesso negado.' });
                 return;
             }
 
             const dados = req.body as VeiculoData;
-
-            // Validação do Marco Zero (Obrigatório para o sistema funcionar corretamente)
             const kmInicial = Number(dados.kmAtual);
+
             if (isNaN(kmInicial) || kmInicial < 0) {
-                res.status(400).json({ error: 'É obrigatório informar o KM Atual (Odômetro) para iniciar o histórico do veículo.' });
+                res.status(400).json({ error: 'É obrigatório informar o KM Atual válido.' });
                 return;
             }
 
-            // Transação: Cria o Veículo E o Histórico Inicial juntos
             const resultado = await prisma.$transaction(async (tx) => {
-                // 1. Cria o Veículo
                 const novoVeiculo = await tx.veiculo.create({
                     data: {
                         placa: dados.placa,
@@ -52,18 +103,18 @@ export class VeiculoController {
                         status: dados.status || 'ATIVO',
                         capacidadeTanque: dados.capacidadeTanque ?? null,
                         tipoVeiculo: dados.tipoVeiculo ?? null,
-                        vencimentoCiv: dados.vencimentoCiv ?? null,
-                        vencimentoCipp: dados.vencimentoCipp ?? null,
+                        vencimentoCiv: dados.vencimentoCiv ? new Date(dados.vencimentoCiv) : null,
+                        vencimentoCipp: dados.vencimentoCipp ? new Date(dados.vencimentoCipp) : null,
+                        ultimoKm: kmInicial
                     },
                 });
 
-                // 2. Cria o Marco Zero no Histórico
                 await tx.historicoKm.create({
                     data: {
                         veiculoId: novoVeiculo.id,
                         km: kmInicial,
                         dataLeitura: new Date(),
-                        origem: 'MANUAL', // Indica cadastro inicial
+                        origem: 'MANUAL',
                         origemId: null
                     }
                 });
@@ -77,10 +128,6 @@ export class VeiculoController {
         }
     }
 
-    /**
-     * Lista veículos para a tabela.
-     * O Prisma retorna as datas (vencimento) como ISO Strings, o que é perfeito para o Frontend.
-     */
     list = async (req: Request, res: Response, next: NextFunction) => {
         try {
             const veiculos = await prisma.veiculo.findMany({
@@ -92,10 +139,6 @@ export class VeiculoController {
         }
     }
 
-    /**
-     * Busca veículo para Edição.
-     * Formata as datas para YYYY-MM-DD para preencher os inputs date corretamente.
-     */
     getById = async (req: Request, res: Response, next: NextFunction) => {
         try {
             const { id } = req.params;
@@ -104,18 +147,17 @@ export class VeiculoController {
                 return;
             }
 
-            const veiculo = await prisma.veiculo.findUnique({ where: { id } });
+            const veiculo = await prisma.veiculo.findUnique({ where: { id: id as string } });
             if (!veiculo) {
                 res.status(404).json({ error: 'Veículo não encontrado.' });
                 return;
             }
 
-            // Busca o KM real (pode ser redundante se confiarmos no kmAtual da tabela, mas é mais seguro)
-            const ultimoKm = await KmService.getUltimoKMRegistrado(id);
+            const ultimoKm = await KmService.getUltimoKMRegistrado(id as string);
 
             const veiculoFormatado = {
                 ...veiculo,
-                kmAtual: ultimoKm, // Garante que o frontend receba o KM mais atualizado possível
+                kmAtual: ultimoKm,
                 vencimentoCiv: formatDateToInput(veiculo.vencimentoCiv),
                 vencimentoCipp: formatDateToInput(veiculo.vencimentoCipp),
             };
@@ -142,7 +184,7 @@ export class VeiculoController {
             const dados = req.body as VeiculoData;
 
             const updatedVeiculo = await prisma.veiculo.update({
-                where: { id },
+                where: { id: id as string },
                 data: {
                     placa: dados.placa,
                     marca: dados.marca,
@@ -152,10 +194,8 @@ export class VeiculoController {
                     status: dados.status,
                     capacidadeTanque: dados.capacidadeTanque ?? null,
                     tipoVeiculo: dados.tipoVeiculo ?? null,
-                    vencimentoCiv: dados.vencimentoCiv ?? null,
-                    vencimentoCipp: dados.vencimentoCipp ?? null,
-                    // Nota: Não atualizamos kmAtual aqui diretamente para evitar inconsistência com o histórico.
-                    // O KM deve ser atualizado via Abastecimento ou Jornada.
+                    vencimentoCiv: dados.vencimentoCiv ? new Date(dados.vencimentoCiv) : null,
+                    vencimentoCipp: dados.vencimentoCipp ? new Date(dados.vencimentoCipp) : null,
                 },
             });
             res.status(200).json(updatedVeiculo);
@@ -177,7 +217,7 @@ export class VeiculoController {
                 return;
             }
 
-            await prisma.veiculo.delete({ where: { id } });
+            await prisma.veiculo.delete({ where: { id: id as string } });
             res.status(200).json({ message: 'Veículo removido com sucesso.' });
         } catch (error) {
             next(error);
