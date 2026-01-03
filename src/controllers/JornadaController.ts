@@ -223,7 +223,7 @@ export class JornadaController {
         }
     }
 
-    // --- FUNÇÃO: UPDATE  ---
+    // --- FUNÇÃO: UPDATE (Edição administrativa - Mantida) ---
     update = async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
         try {
             if (!['ADMIN', 'ENCARREGADO'].includes(req.user?.role || '')) {

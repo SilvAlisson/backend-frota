@@ -1,3 +1,5 @@
+import "./instrument";
+import * as Sentry from "@sentry/node";
 import express from 'express';
 import cors from 'cors';
 import 'dotenv/config';
@@ -29,6 +31,7 @@ if (!process.env.TOKEN_SECRET) {
 }
 
 const app = express();
+
 const port = env.PORT || 3001;
 
 // ================== MIDDLEWARES GLOBAIS ==================
@@ -79,6 +82,7 @@ app.get('/api/health', (req, res) => {
 });
 
 // ================== TRATAMENTO DE ERROS ==================
+Sentry.setupExpressErrorHandler(app);
 app.use(errorHandler);
 
 // ================== CRON JOBS ==================
