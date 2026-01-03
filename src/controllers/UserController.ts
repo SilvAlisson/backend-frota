@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { prisma } from '../lib/prisma';
 import bcrypt from 'bcrypt';
+import crypto from 'crypto'; // Necessário para gerar token na criação
 import { AuthenticatedRequest } from '../middleware/auth';
 import { z } from 'zod';
 import { registerUserSchema } from '../schemas/auth.schemas';
@@ -38,7 +39,13 @@ export class UserController {
             const salt = await bcrypt.genSalt(10);
             const hashedPassword = await bcrypt.hash(dados.password, salt);
 
-            // 4. Criação no Banco (CORRIGIDO: Usa profile aninhado)
+            // [MELHORIA] Gerar token inicial automaticamente para Operadores/Encarregados
+            let initialLoginToken = null;
+            if (['OPERADOR', 'ENCARREGADO'].includes(dados.role || '')) {
+                initialLoginToken = crypto.randomBytes(32).toString('hex');
+            }
+
+            // 4. Criação no Banco
             const novoUser = await prisma.user.create({
                 data: {
                     // Dados da tabela USER
@@ -49,6 +56,7 @@ export class UserController {
                     matricula: dados.matricula ?? null,
                     fotoUrl: dados.fotoUrl ?? null,
                     cargoId: dados.cargoId ?? null,
+                    loginToken: initialLoginToken, // Já nasce com token!
 
                     // Dados da tabela COLABORADOR_PROFILE (Nested Write)
                     profile: {
@@ -65,7 +73,7 @@ export class UserController {
                 }
             });
 
-            // 5. Retorno Seguro (Sem senha)
+            // 5. Retorno Seguro (Sem senha, mas COM token se existir)
             const { password: _, ...userSemSenha } = novoUser;
             res.status(201).json(userSemSenha);
 
@@ -84,8 +92,18 @@ export class UserController {
                     role: true,
                     matricula: true,
                     fotoUrl: true,
-                    loginToken: true, // [CORREÇÃO] Adicionado para o QR Code aparecer na lista
-                    cargo: { select: { nome: true } }
+                    // [IMPORTANTE] O token deve vir na listagem para o botão "Ver Código" funcionar
+                    loginToken: true,
+                    cargoId: true,
+
+                    cargo: { select: { nome: true } },
+                    profile: {
+                        select: {
+                            cnhNumero: true,
+                            cnhCategoria: true,
+                            cnhValidade: true
+                        }
+                    }
                 },
                 orderBy: { nome: 'asc' }
             });
@@ -210,7 +228,7 @@ export class UserController {
                     role: true,
                     matricula: true,
                     fotoUrl: true,
-                    loginToken: true, // [CORREÇÃO] Adicionado para manter o token após edição
+                    loginToken: true, // [CORREÇÃO] Mantém o token visível após a edição
                     profile: true // Retorna o perfil atualizado
                 }
             });
