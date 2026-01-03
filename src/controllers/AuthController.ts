@@ -23,7 +23,11 @@ export class AuthController {
         try {
             const { email, password } = req.body as LoginData;
 
-            const user = await prisma.user.findUnique({ where: { email } });
+            // [MELHORIA 1] Incluímos o Profile para trazer dados de CNH e Admissão no login
+            const user = await prisma.user.findUnique({
+                where: { email },
+                include: { profile: true }
+            });
 
             if (!user || !await bcrypt.compare(password, user.password)) {
                 return res.status(401).json({ error: 'Credenciais inválidas' });
@@ -43,7 +47,16 @@ export class AuthController {
                     nome: user.nome,
                     email: user.email,
                     role: user.role,
-                    fotoUrl: user.fotoUrl
+                    fotoUrl: user.fotoUrl,
+                    loginToken: user.loginToken, // Essencial para o QR Code funcionar
+
+                    // [MELHORIA 2] Dados Operacionais Completos
+                    matricula: user.matricula,
+                    cargoId: user.cargoId,
+                    cnhNumero: user.profile?.cnhNumero || null,
+                    cnhCategoria: user.profile?.cnhCategoria || null,
+                    cnhValidade: user.profile?.cnhValidade || null,
+                    dataAdmissao: user.profile?.dataAdmissao || null
                 },
             });
         } catch (error) {
@@ -56,11 +69,15 @@ export class AuthController {
         try {
             const { loginToken } = req.body as LoginTokenData;
 
-            const user = await prisma.user.findFirst({ where: { loginToken } });
-            if (!user) return res.status(401).json({ error: 'Token inválido.' });
+            // [MELHORIA 3] A mesma inclusão de profile para o login via QR Code
+            const user = await prisma.user.findFirst({
+                where: { loginToken },
+                include: { profile: true }
+            });
 
-            // ALTERAÇÃO 1: Validade estendida para 1 ano (365 dias)
-            // Isso garante que o login via QR Code não expire inesperadamente
+            if (!user) return res.status(401).json({ error: 'Token inválido ou expirado.' });
+
+            // Validade estendida para 1 ano (365 dias) para crachás
             const token = jwt.sign(
                 { userId: user.id, role: user.role },
                 env.TOKEN_SECRET,
@@ -75,7 +92,16 @@ export class AuthController {
                     nome: user.nome,
                     email: user.email,
                     role: user.role,
-                    fotoUrl: user.fotoUrl
+                    fotoUrl: user.fotoUrl,
+                    loginToken: user.loginToken,
+
+                    // [MELHORIA 4] Garante que o operador tenha todos os dados ao escanear o crachá
+                    matricula: user.matricula,
+                    cargoId: user.cargoId,
+                    cnhNumero: user.profile?.cnhNumero || null,
+                    cnhCategoria: user.profile?.cnhCategoria || null,
+                    cnhValidade: user.profile?.cnhValidade || null,
+                    dataAdmissao: user.profile?.dataAdmissao || null
                 },
             });
         } catch (error) {
@@ -101,14 +127,7 @@ export class AuthController {
                 return res.status(400).json({ error: 'Apenas Operadores e Encarregados podem ter acesso via QR Code.' });
             }
 
-            // ALTERAÇÃO 2: Verificação de token existente
-            // Se o usuário já possui um token, retornamos o existente.
-            // Isso evita que um clique acidental invalide o crachá físico do operador.
-            if (userToCheck.loginToken) {
-                return res.json({ loginToken: userToCheck.loginToken });
-            }
-
-            // Se não existe, gera um novo
+            // [MANTIDO CORREÇÃO] Gera sempre um novo token, permitindo rotação de segurança
             const token = crypto.randomBytes(32).toString('hex');
 
             await prisma.user.update({
