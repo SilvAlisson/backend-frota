@@ -25,11 +25,11 @@ export const abastecimentoSchema = z.object({
         justificativa: z.string().optional().nullable().transform(v => v || null),
         observacoes: z.string().optional().nullable().transform(v => v || null),
 
-        // Validação de URL corrigida: Aceita string (que será validada como URL) ou null/undefined se vazio
+        // Validação de URL: Aceita string (que será validada como URL) ou null/undefined se vazio
         fotoNotaFiscalUrl: z.string().url({ message: "URL da foto inválida" })
             .optional()
             .nullable()
-            .or(z.literal('')) // Aceita string vazia vinda do front
+            .or(z.literal(''))
             .transform(v => v || null),
 
         itens: z.array(itemSchema).min(1, { message: "Adicione pelo menos um item" }),
