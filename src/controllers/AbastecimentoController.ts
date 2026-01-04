@@ -100,8 +100,8 @@ export class AbastecimentoController {
     getById = async (req: Request, res: Response, next: NextFunction) => {
         try {
             const { id } = req.params;
-            
-            // CORREÇÃO SEGURA: Validação de existência para satisfazer o TypeScript strict null checks
+
+            // Validação de existência para satisfazer o TypeScript strict null checks
             if (!id) {
                 res.status(400).json({ error: 'ID inválido.' });
                 return;
@@ -109,7 +109,7 @@ export class AbastecimentoController {
 
             // Aqui o TS sabe que 'id' é string
             const abastecimento = await prisma.abastecimento.findUnique({
-                where: { id }, 
+                where: { id },
                 include: {
                     veiculo: { select: { id: true, placa: true, modelo: true } },
                     operador: { select: { id: true, nome: true } },
@@ -140,7 +140,7 @@ export class AbastecimentoController {
             }
 
             const { id } = req.params;
-            
+
             // CORREÇÃO SEGURA: Type Guard
             if (!id) {
                 res.status(400).json({ error: 'ID é obrigatório.' });
@@ -166,7 +166,7 @@ export class AbastecimentoController {
                     if (item.produto?.tipo !== 'COMBUSTIVEL') return false;
                     const nomeProduto = item.produto.nome.toUpperCase();
                     const tipoVeiculo = veiculo.tipoCombustivel;
-                    
+
                     if (tipoVeiculo === 'DIESEL_S10' && (nomeProduto.includes('GASOLINA') || nomeProduto.includes('ETANOL'))) return true;
                     if ((['GASOLINA_COMUM', 'ETANOL', 'GNV'].includes(tipoVeiculo)) && nomeProduto.includes('DIESEL')) return true;
                     return false;
@@ -194,7 +194,7 @@ export class AbastecimentoController {
             const atualizado = await prisma.$transaction(async (tx) => {
                 // Aqui usamos 'id' que foi validado acima
                 await tx.itemAbastecimento.deleteMany({
-                    where: { abastecimentoId: id } 
+                    where: { abastecimentoId: id }
                 });
 
                 return await tx.abastecimento.update({
@@ -266,9 +266,9 @@ export class AbastecimentoController {
                 res.status(403).json({ error: 'Apenas Admins.' });
                 return;
             }
-            
+
             const { id } = req.params;
-            
+
             // CORREÇÃO SEGURA: Validação obrigatória
             if (!id) {
                 res.status(400).json({ error: 'ID inválido.' });
@@ -279,7 +279,7 @@ export class AbastecimentoController {
                 // Aqui 'id' é string segura
                 const exists = await tx.abastecimento.findUnique({ where: { id } });
                 if (!exists) throw new Error('Registro não encontrado');
-                
+
                 await tx.itemAbastecimento.deleteMany({ where: { abastecimentoId: id } });
                 await tx.abastecimento.delete({ where: { id } });
             });

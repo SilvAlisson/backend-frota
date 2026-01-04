@@ -29,7 +29,7 @@ export class FornecedorController {
 
             res.status(201).json(fornecedor);
         } catch (error) {
-            next(error); // Middleware trata P2002 (nome/CNPJ duplicado)
+            next(error);
         }
     }
 
@@ -107,7 +107,7 @@ export class FornecedorController {
             await prisma.fornecedor.delete({ where: { id } });
             res.json({ message: 'Removido com sucesso' });
         } catch (error) {
-            next(error); // Middleware trata P2003 (FK violation)
+            next(error);
         }
     }
 }

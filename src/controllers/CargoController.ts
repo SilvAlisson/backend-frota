@@ -3,7 +3,6 @@ import { prisma } from '../lib/prisma';
 import { AuthenticatedRequest } from '../middleware/auth';
 import { z } from 'zod';
 import { cargoSchema, addRequisitoSchema } from '../schemas/cargo.schemas';
-import { Prisma } from '@prisma/client';
 
 // Extraímos os tipos dos schemas globais
 type CreateCargoData = z.infer<typeof cargoSchema>['body'];
@@ -36,7 +35,7 @@ export class CargoController {
 
             res.status(201).json(cargo);
         } catch (error) {
-            next(error); // Middleware trata P2002 (nome duplicado)
+            next(error);
         }
     }
 
@@ -91,7 +90,7 @@ export class CargoController {
 
             const dados = req.body as AddRequisitoData;
 
-            // Opcional: Verificar existência (O erro de FK também trataria, mas 404 é mais claro)
+            // Verificar existência (O erro de FK também trataria, mas 404 é mais claro)
             const cargoExiste = await prisma.cargo.findUnique({ where: { id: cargoId } });
             if (!cargoExiste) {
                 res.status(404).json({ error: "Cargo não encontrado" });
