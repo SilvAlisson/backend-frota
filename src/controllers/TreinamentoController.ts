@@ -29,11 +29,9 @@ export class TreinamentoController {
 
             const treinamento = await prisma.treinamento.create({
                 data: {
-                    // Usamos connect para garantir a integridade da relação
                     user: { connect: { id: userId } },
                     nome,
-                    dataRealizacao, // Já vem como Date do Zod (coerce)
-                    // Fallbacks explícitos para evitar o erro de tipagem {} | null
+                    dataRealizacao,
                     descricao: (descricao as string) ?? null,
                     dataVencimento: dataVencimento ?? null,
                     comprovanteUrl: (comprovanteUrl as string) ?? null
@@ -64,7 +62,7 @@ export class TreinamentoController {
                     dataRealizacao: t.dataRealizacao,
                     descricao: (t.descricao as string) ?? null,
                     dataVencimento: t.dataVencimento ?? null,
-                    comprovanteUrl: null // Importações em massa geralmente não trazem arquivos
+                    comprovanteUrl: null
                 }))
             });
 
