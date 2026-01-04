@@ -97,7 +97,6 @@ cron.schedule('0 * * * *', async () => {
   }
 });
 
-
 // ================== START SERVER ==================
 app.listen(port, () => {
   console.log(`✅ Servidor rodando na porta ${port}`);
