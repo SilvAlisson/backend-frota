@@ -6,20 +6,16 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.UserController = void 0;
 const prisma_1 = require("../lib/prisma");
 const bcrypt_1 = __importDefault(require("bcrypt"));
+const crypto_1 = __importDefault(require("crypto"));
 class UserController {
-    /**
-     * Cria um novo utilizador.
-     */
     create = async (req, res, next) => {
         try {
-            // 1. Validação de Permissão Básica
             const currentUserRole = req.user?.role || '';
             if (!['ADMIN', 'RH'].includes(currentUserRole)) {
                 res.status(403).json({ error: 'Acesso não autorizado.' });
                 return;
             }
             const dados = req.body;
-            // 2. Regras de Hierarquia
             if (currentUserRole === 'RH' && dados.role === 'ADMIN') {
                 res.status(403).json({ error: 'RH não pode criar usuários Administradores.' });
                 return;
@@ -28,10 +24,12 @@ class UserController {
                 res.status(403).json({ error: 'Apenas ADMIN pode criar outro ADMIN.' });
                 return;
             }
-            // 3. Hash da Senha
             const salt = await bcrypt_1.default.genSalt(10);
             const hashedPassword = await bcrypt_1.default.hash(dados.password, salt);
-            // 4. Criação no Banco
+            let initialLoginToken = null;
+            if (['OPERADOR', 'ENCARREGADO'].includes(dados.role || '')) {
+                initialLoginToken = crypto_1.default.randomBytes(32).toString('hex');
+            }
             const novoUser = await prisma_1.prisma.user.create({
                 data: {
                     nome: dados.nome,
@@ -41,13 +39,20 @@ class UserController {
                     matricula: dados.matricula ?? null,
                     fotoUrl: dados.fotoUrl ?? null,
                     cargoId: dados.cargoId ?? null,
-                    cnhNumero: dados.cnhNumero ?? null,
-                    cnhCategoria: dados.cnhCategoria ?? null,
-                    cnhValidade: dados.cnhValidade ? new Date(dados.cnhValidade) : null,
-                    dataAdmissao: dados.dataAdmissao ? new Date(dados.dataAdmissao) : null,
+                    loginToken: initialLoginToken,
+                    profile: {
+                        create: {
+                            cnhNumero: dados.cnhNumero ?? null,
+                            cnhCategoria: dados.cnhCategoria ?? null,
+                            cnhValidade: dados.cnhValidade ? new Date(dados.cnhValidade) : null,
+                            dataAdmissao: dados.dataAdmissao ? new Date(dados.dataAdmissao) : null,
+                        }
+                    }
                 },
+                include: {
+                    profile: true
+                }
             });
-            // 5. Retorno Seguro (Sem senha)
             const { password: _, ...userSemSenha } = novoUser;
             res.status(201).json(userSemSenha);
         }
@@ -65,7 +70,16 @@ class UserController {
                     role: true,
                     matricula: true,
                     fotoUrl: true,
-                    cargo: { select: { nome: true } }
+                    loginToken: true,
+                    cargoId: true,
+                    cargo: { select: { nome: true } },
+                    profile: {
+                        select: {
+                            cnhNumero: true,
+                            cnhCategoria: true,
+                            cnhValidade: true
+                        }
+                    }
                 },
                 orderBy: { nome: 'asc' }
             });
@@ -82,14 +96,16 @@ class UserController {
                 return;
             }
             const { id } = req.params;
-            // CORREÇÃO: Verificação explícita para o TypeScript
             if (!id) {
                 res.status(400).json({ error: 'ID não fornecido.' });
                 return;
             }
             const user = await prisma_1.prisma.user.findUnique({
-                where: { id }, // Agora 'id' é garantidamente string
-                include: { cargo: true }
+                where: { id },
+                include: {
+                    cargo: true,
+                    profile: true
+                }
             });
             if (!user) {
                 res.status(404).json({ error: 'Usuário não encontrado' });
@@ -110,13 +126,11 @@ class UserController {
                 return;
             }
             const { id } = req.params;
-            // CORREÇÃO: Verificação explícita
             if (!id) {
                 res.status(400).json({ error: 'ID não fornecido.' });
                 return;
             }
             const { nome, email, matricula, role, password, cargoId, cnhNumero, cnhCategoria, cnhValidade, dataAdmissao, fotoUrl } = req.body;
-            // Segurança: RH vs ADMIN
             if (currentUserRole === 'RH') {
                 const alvo = await prisma_1.prisma.user.findUnique({ where: { id }, select: { role: true } });
                 if (alvo?.role === 'ADMIN') {
@@ -128,27 +142,45 @@ class UserController {
                     return;
                 }
             }
-            // Preparar objeto de update
-            const dataToUpdate = {
+            const dataToUpdateUser = {
                 nome,
                 email,
                 role,
                 matricula: matricula || null,
                 fotoUrl: fotoUrl || null,
                 cargoId: cargoId || null,
+            };
+            if (password && password.trim() !== '') {
+                dataToUpdateUser.password = await bcrypt_1.default.hash(password, 10);
+            }
+            Object.keys(dataToUpdateUser).forEach(key => dataToUpdateUser[key] === undefined && delete dataToUpdateUser[key]);
+            const profileData = {
                 cnhNumero: cnhNumero || null,
                 cnhCategoria: cnhCategoria || null,
                 cnhValidade: cnhValidade ? new Date(cnhValidade) : null,
                 dataAdmissao: dataAdmissao ? new Date(dataAdmissao) : null
             };
-            Object.keys(dataToUpdate).forEach(key => dataToUpdate[key] === undefined && delete dataToUpdate[key]);
-            if (password && password.trim() !== '') {
-                dataToUpdate.password = await bcrypt_1.default.hash(password, 10);
-            }
             const updated = await prisma_1.prisma.user.update({
                 where: { id },
-                data: dataToUpdate,
-                select: { id: true, nome: true, email: true, role: true, matricula: true, fotoUrl: true }
+                data: {
+                    ...dataToUpdateUser,
+                    profile: {
+                        upsert: {
+                            create: profileData,
+                            update: profileData
+                        }
+                    }
+                },
+                select: {
+                    id: true,
+                    nome: true,
+                    email: true,
+                    role: true,
+                    matricula: true,
+                    fotoUrl: true,
+                    loginToken: true,
+                    profile: true
+                }
             });
             res.json(updated);
         }
@@ -164,7 +196,6 @@ class UserController {
                 return;
             }
             const { id } = req.params;
-            // CORREÇÃO: Verificação explícita
             if (!id) {
                 res.status(400).json({ error: 'ID não fornecido.' });
                 return;

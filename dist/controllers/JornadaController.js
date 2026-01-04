@@ -4,102 +4,84 @@ exports.JornadaController = void 0;
 const prisma_1 = require("../lib/prisma");
 const KmService_1 = require("../services/KmService");
 const JornadaService_1 = require("../services/JornadaService");
+const OcrService_1 = require("../services/OcrService");
 class JornadaController {
-    // --- INICIAR JORNADA ---
     iniciar = async (req, res, next) => {
         try {
-            const { veiculoId, encarregadoId, kmInicio, observacoes, fotoInicioUrl } = req.body;
+            const { veiculoId, encarregadoId, kmInicio: kmDigitado, observacoes, fotoInicioUrl } = req.body;
             const operadorId = req.user?.userId;
-            if (!operadorId) {
-                res.status(401).json({ error: 'Usuário não autenticado.' });
+            if (!operadorId || !encarregadoId) {
+                res.status(401).json({ error: 'Usuário não autenticado ou encarregado não informado.' });
                 return;
             }
-            // CORREÇÃO: Validação explícita para o TypeScript e para a Regra de Negócio
-            // Como seu Prisma exige Encarregado, barramos aqui se ele não vier no body.
-            if (!encarregadoId) {
-                res.status(400).json({ error: 'É obrigatório informar um encarregado para iniciar a jornada.' });
-                return;
-            }
-            // 0. BLINDAGEM MOTORISTA FANTASMA
             const jornadaEmAberto = await prisma_1.prisma.jornada.findFirst({
-                where: {
-                    operadorId: operadorId,
-                    dataFim: null
-                },
+                where: { operadorId, dataFim: null },
                 include: { veiculo: true }
             });
             if (jornadaEmAberto) {
                 res.status(409).json({
-                    error: `Você já possui uma jornada em andamento no veículo ${jornadaEmAberto.veiculo.placa}. Finalize-a antes de iniciar uma nova.`
+                    error: `Você já possui uma jornada em andamento no veículo ${jornadaEmAberto.veiculo.placa}.`
                 });
                 return;
             }
-            const veiculo = await prisma_1.prisma.veiculo.findUnique({ where: { id: veiculoId } });
-            const usuario = await prisma_1.prisma.user.findUnique({ where: { id: operadorId } });
-            if (!veiculo || !usuario) {
-                res.status(404).json({ error: 'Veículo ou usuário não encontrados.' });
-                return;
-            }
-            // 0.5. BLINDAGEM DE CNH (Compliance)
-            const tipoVeiculo = veiculo.tipoVeiculo?.toUpperCase() || '';
-            const cnhCategoria = usuario.cnhCategoria?.toUpperCase() || '';
-            const exigeCategoriaPesada = ['CAMINHAO', 'TRUCK', 'CARRETA', 'MUNCK', 'ONIBUS'].some(t => tipoVeiculo.includes(t));
-            const temCategoriaPesada = ['C', 'D', 'E'].some(c => cnhCategoria.includes(c));
-            if (exigeCategoriaPesada && !temCategoriaPesada) {
-                console.warn(`[Compliance] Motorista ${usuario.nome} (CNH ${cnhCategoria}) iniciou jornada em veículo pesado ${veiculo.modelo}.`);
-            }
-            // 1. VALIDAÇÃO DE KM
             const ultimoKMConsolidado = await KmService_1.KmService.getUltimoKMRegistrado(veiculoId);
-            const jornadaAbertaAnterior = await prisma_1.prisma.jornada.findFirst({
-                where: { veiculoId: veiculoId, kmFim: null },
-                orderBy: { dataInicio: 'desc' }
-            });
-            const kmReferencia = jornadaAbertaAnterior
-                ? Math.max(ultimoKMConsolidado, jornadaAbertaAnterior.kmInicio)
-                : ultimoKMConsolidado;
-            if (kmInicio < kmReferencia) {
+            let kmProcessado = kmDigitado;
+            if (ultimoKMConsolidado > 0 && kmDigitado > (ultimoKMConsolidado * 5)) {
+                kmProcessado = Math.floor(kmDigitado / 10);
+            }
+            if (kmProcessado < ultimoKMConsolidado) {
                 res.status(400).json({
-                    error: `KM Inválido! O veículo já possui registro de ${kmReferencia} KM. Verifique o painel.`
+                    error: `KM Inválido! O veículo já possui registro de ${ultimoKMConsolidado} KM. Digitado: ${kmProcessado}.`
                 });
                 return;
             }
-            // 2. TRANSAÇÃO DE RENDIÇÃO AUTOMÁTICA
             const novaJornada = await prisma_1.prisma.$transaction(async (tx) => {
-                // Passo A: Fechar jornada anterior (se houver)
-                if (jornadaAbertaAnterior) {
-                    await tx.jornada.update({
-                        where: { id: jornadaAbertaAnterior.id },
-                        data: {
-                            kmFim: kmInicio,
-                            dataFim: new Date(),
-                            observacoes: (jornadaAbertaAnterior.observacoes || '') + ' [Rendição: Fechado pelo próximo operador]'
+                const ultimaJornadaFechada = await tx.jornada.findFirst({
+                    where: { veiculoId, kmFim: { not: null } },
+                    orderBy: { dataFim: 'desc' }
+                });
+                if (ultimaJornadaFechada?.dataFim) {
+                    const diffMs = new Date().getTime() - new Date(ultimaJornadaFechada.dataFim).getTime();
+                    const diasInativos = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+                    const kmTotalFaltante = kmProcessado - (ultimaJornadaFechada.kmFim || 0);
+                    if (diasInativos >= 1 && kmTotalFaltante > 50) {
+                        const kmDiario = Math.floor(kmTotalFaltante / (diasInativos + 1));
+                        const ajustes = [];
+                        for (let i = 1; i <= diasInativos; i++) {
+                            const dataAjuste = new Date(ultimaJornadaFechada.dataFim);
+                            dataAjuste.setDate(dataAjuste.getDate() + i);
+                            ajustes.push({
+                                veiculoId,
+                                operadorId,
+                                encarregadoId,
+                                dataInicio: dataAjuste,
+                                dataFim: dataAjuste,
+                                kmInicio: (ultimaJornadaFechada.kmFim || 0) + (kmDiario * (i - 1)),
+                                kmFim: (ultimaJornadaFechada.kmFim || 0) + (kmDiario * i),
+                                observacoes: `[AJUSTE AUTOMÁTICO] Veículo sem registro por ${diasInativos} dias. KM rateado.`
+                            });
                         }
-                    });
-                }
-                else {
-                    const ultimaJornadaFechada = await tx.jornada.findFirst({
-                        where: { veiculoId: veiculoId, kmFim: { not: null } },
-                        orderBy: { dataFim: 'desc' }
-                    });
-                    if (ultimaJornadaFechada && ultimaJornadaFechada.observacoes?.includes('[SYSTEM_AUTO_CLOSE]')) {
-                        await tx.jornada.update({
-                            where: { id: ultimaJornadaFechada.id },
-                            data: {
-                                kmFim: kmInicio,
-                                observacoes: ultimaJornadaFechada.observacoes + ' [Correção: KM validado pelo próximo operador]'
-                            }
-                        });
+                        await tx.jornada.createMany({ data: ajustes });
                     }
                 }
-                // Passo B: Criar a nova jornada (Campos obrigatórios garantidos)
+                await tx.jornada.updateMany({
+                    where: { veiculoId, dataFim: null },
+                    data: {
+                        kmFim: kmProcessado,
+                        dataFim: new Date(),
+                        observacoes: '[RENDIÇÃO] Fechado automaticamente pelo próximo operador.'
+                    }
+                });
                 return await tx.jornada.create({
                     data: {
                         veiculoId,
                         operadorId,
-                        encarregadoId, // Agora o TS confia que é string devido ao 'if' acima
+                        encarregadoId,
                         dataInicio: new Date(),
-                        kmInicio,
-                        observacoes: observacoes ?? null,
+                        kmInicio: kmProcessado,
+                        observacoes: kmProcessado !== kmDigitado
+                            ? (observacoes || '') + ` [Correção escala: Original era ${kmDigitado}]`
+                            : (observacoes ?? null),
                         fotoInicioUrl: fotoInicioUrl ?? null,
                     },
                     include: { veiculo: true, encarregado: true }
@@ -111,49 +93,74 @@ class JornadaController {
             next(error);
         }
     };
-    // --- FINALIZAR JORNADA ---
     finalizar = async (req, res, next) => {
         try {
-            const { kmFim, observacoes, fotoFimUrl } = req.body;
+            const { kmFim: kmDigitado, observacoes, fotoFimUrl } = req.body;
             const { id } = req.params;
             if (!id) {
                 res.status(400).json({ error: 'ID da jornada não fornecido.' });
                 return;
             }
-            const jornada = await prisma_1.prisma.jornada.findUnique({ where: { id } });
-            if (!jornada) {
-                res.status(404).json({ error: 'Jornada não encontrada.' });
+            const jornada = await prisma_1.prisma.jornada.findUnique({ where: { id: String(id) } });
+            if (!jornada || jornada.dataFim) {
+                res.status(404).json({ error: 'Jornada não encontrada ou já finalizada.' });
                 return;
             }
-            const isDono = jornada.operadorId === req.user?.userId;
-            const isGestor = ['ADMIN', 'ENCARREGADO'].includes(req.user?.role || '');
-            if (!isDono && !isGestor) {
-                res.status(403).json({ error: 'Sem permissão para fechar esta jornada.' });
+            const tempoDecorridoMs = new Date().getTime() - new Date(jornada.dataInicio).getTime();
+            const horasDecurso = Math.max(tempoDecorridoMs / (1000 * 60 * 60), 0.1);
+            let kmFimProcessado = kmDigitado;
+            if (fotoFimUrl) {
+                const kmLidoOCR = await OcrService_1.OcrService.lerOdometro(fotoFimUrl);
+                if (kmLidoOCR) {
+                    const escalaOCR = Math.floor(kmLidoOCR / 10);
+                    if (Math.abs(escalaOCR - kmDigitado) < 5) {
+                        kmFimProcessado = escalaOCR;
+                    }
+                }
+            }
+            let velocidade = (kmFimProcessado - jornada.kmInicio) / horasDecurso;
+            if (velocidade > 150) {
+                const kmCorrigido = Math.floor(kmDigitado / 10);
+                const novaVelocidade = (kmCorrigido - jornada.kmInicio) / horasDecurso;
+                if (novaVelocidade <= 150 && novaVelocidade >= 0) {
+                    kmFimProcessado = kmCorrigido;
+                }
+                else {
+                    res.status(400).json({
+                        error: `KM Final impossível (${velocidade.toFixed(0)} km/h). Verifique o odômetro.`
+                    });
+                    return;
+                }
+            }
+            if (kmFimProcessado < jornada.kmInicio) {
+                res.status(400).json({ error: `KM Final (${kmFimProcessado}) menor que o Inicial (${jornada.kmInicio}).` });
                 return;
             }
-            if (jornada.dataFim) {
-                res.status(400).json({ error: 'Jornada já finalizada.' });
-                return;
-            }
-            if (kmFim < jornada.kmInicio) {
-                res.status(400).json({ error: `KM Final (${kmFim}) não pode ser menor que o Inicial (${jornada.kmInicio}).` });
-                return;
-            }
-            const ultimoKMGlobal = await KmService_1.KmService.getUltimoKMRegistrado(jornada.veiculoId);
-            if (kmFim < ultimoKMGlobal && ultimoKMGlobal > jornada.kmInicio) {
-                res.status(400).json({
-                    error: `Inconsistência: Existe um registro com KM ${ultimoKMGlobal} posterior ao início desta jornada.`
+            const finalizada = await prisma_1.prisma.$transaction(async (tx) => {
+                const update = await tx.jornada.update({
+                    where: { id: String(id) },
+                    data: {
+                        dataFim: new Date(),
+                        kmFim: kmFimProcessado,
+                        observacoes: kmFimProcessado !== kmDigitado
+                            ? (observacoes || '') + ` [Ajuste Escala/OCR: Digitado ${kmDigitado}]`
+                            : (observacoes ?? null),
+                        fotoFimUrl: fotoFimUrl ?? null,
+                    },
                 });
-                return;
-            }
-            const finalizada = await prisma_1.prisma.jornada.update({
-                where: { id },
-                data: {
-                    dataFim: new Date(),
-                    kmFim: kmFim,
-                    observacoes: observacoes ?? null,
-                    fotoFimUrl: fotoFimUrl ?? null,
-                },
+                await tx.veiculo.update({
+                    where: { id: jornada.veiculoId },
+                    data: { ultimoKm: kmFimProcessado }
+                });
+                await tx.historicoKm.create({
+                    data: {
+                        km: kmFimProcessado,
+                        origem: "JORNADA",
+                        origemId: String(id),
+                        veiculoId: jornada.veiculoId
+                    }
+                });
+                return update;
             });
             res.json(finalizada);
         }
@@ -161,7 +168,51 @@ class JornadaController {
             next(error);
         }
     };
-    // --- LISTAGENS ---
+    update = async (req, res, next) => {
+        try {
+            if (!['ADMIN', 'ENCARREGADO'].includes(req.user?.role || '')) {
+                res.status(403).json({ error: 'Apenas gestores podem corrigir jornadas.' });
+                return;
+            }
+            const { id } = req.params;
+            if (!id) {
+                res.status(400).json({ error: 'ID da jornada é obrigatório.' });
+                return;
+            }
+            const dados = req.body;
+            if (dados.kmInicio !== undefined && dados.kmFim !== undefined && dados.kmFim !== null) {
+                if (dados.kmFim < dados.kmInicio) {
+                    res.status(400).json({ error: 'KM Final não pode ser menor que o Inicial.' });
+                    return;
+                }
+            }
+            if (dados.dataInicio && dados.dataFim) {
+                if (new Date(dados.dataFim) < new Date(dados.dataInicio)) {
+                    res.status(400).json({ error: 'Data Final não pode ser anterior à Data Inicial.' });
+                    return;
+                }
+            }
+            const dataToUpdate = {};
+            if (dados.kmInicio !== undefined)
+                dataToUpdate.kmInicio = dados.kmInicio;
+            if (dados.kmFim !== undefined)
+                dataToUpdate.kmFim = dados.kmFim;
+            if (dados.observacoes !== undefined)
+                dataToUpdate.observacoes = dados.observacoes;
+            if (dados.dataInicio)
+                dataToUpdate.dataInicio = new Date(dados.dataInicio);
+            if (dados.dataFim !== undefined)
+                dataToUpdate.dataFim = dados.dataFim ? new Date(dados.dataFim) : null;
+            const jornadaAtualizada = await prisma_1.prisma.jornada.update({
+                where: { id: String(id) },
+                data: dataToUpdate
+            });
+            res.json(jornadaAtualizada);
+        }
+        catch (error) {
+            next(error);
+        }
+    };
     listarAbertas = async (req, res, next) => {
         try {
             const list = await prisma_1.prisma.jornada.findMany({
@@ -178,10 +229,8 @@ class JornadaController {
     listarMinhasAbertas = async (req, res, next) => {
         try {
             const userId = req.user?.userId;
-            if (!userId) {
-                res.status(401).json({ error: 'Não autenticado' });
-                return;
-            }
+            if (!userId)
+                return res.status(401).json({ error: 'Não autenticado' });
             const list = await prisma_1.prisma.jornada.findMany({
                 where: { operadorId: userId, kmFim: null },
                 include: { veiculo: true, encarregado: true },
@@ -232,15 +281,6 @@ class JornadaController {
             next(error);
         }
     };
-    verificarTimeouts = async (req, res, next) => {
-        try {
-            await JornadaService_1.JornadaService.fecharJornadasVencidas();
-            res.json({ message: 'Verificação executada.', timestamp: new Date() });
-        }
-        catch (error) {
-            next(error);
-        }
-    };
     delete = async (req, res, next) => {
         try {
             if (!['ADMIN', 'ENCARREGADO'].includes(req.user?.role || '')) {
@@ -248,12 +288,19 @@ class JornadaController {
                 return;
             }
             const { id } = req.params;
-            if (!id) {
-                res.status(400).json({ error: 'ID inválido.' });
-                return;
-            }
-            await prisma_1.prisma.jornada.delete({ where: { id } });
+            if (!id)
+                return res.status(400).json({ error: 'ID inválido.' });
+            await prisma_1.prisma.jornada.delete({ where: { id: String(id) } });
             res.json({ message: 'Jornada removida com sucesso.' });
+        }
+        catch (error) {
+            next(error);
+        }
+    };
+    verificarTimeouts = async (req, res, next) => {
+        try {
+            await JornadaService_1.JornadaService.fecharJornadasVencidas();
+            res.json({ message: 'Verificação executada.', timestamp: new Date() });
         }
         catch (error) {
             next(error);

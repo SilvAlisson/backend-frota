@@ -20,7 +20,7 @@ class ProdutoController {
             res.status(201).json(produto);
         }
         catch (error) {
-            next(error); // Middleware trata P2002 (Produto duplicado)
+            next(error);
         }
     };
     list = async (req, res, next) => {
@@ -62,7 +62,6 @@ class ProdutoController {
                 return;
             }
             const { nome, tipo, unidadeMedida } = req.body;
-            // Se o ID não existir, o Prisma lança P2025 -> middleware converte em 404
             const updated = await prisma_1.prisma.produto.update({
                 where: { id },
                 data: { nome, tipo, unidadeMedida }
@@ -88,7 +87,7 @@ class ProdutoController {
             res.json({ message: 'Removido com sucesso' });
         }
         catch (error) {
-            next(error); // Middleware trata P2003 (Produto em uso em histórico)
+            next(error);
         }
     };
 }

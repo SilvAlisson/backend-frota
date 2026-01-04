@@ -9,7 +9,6 @@ const itemSchema = zod_1.z.object({
     valorPorUnidade: zod_1.z.coerce.number({ error: "Valor inválido" })
         .min(0, { message: "Valor não pode ser negativo" }),
 });
-// --- Abastecimento ---
 exports.abastecimentoSchema = zod_1.z.object({
     body: zod_1.z.object({
         veiculoId: zod_1.z.string({ error: "Veículo obrigatório" }).min(1, { message: "Veículo obrigatório" }),
@@ -17,20 +16,17 @@ exports.abastecimentoSchema = zod_1.z.object({
         fornecedorId: zod_1.z.string({ error: "Fornecedor obrigatório" }).min(1, { message: "Fornecedor obrigatório" }),
         kmOdometro: zod_1.z.coerce.number({ error: "KM inválido" }).positive({ message: "KM deve ser positivo" }),
         dataHora: zod_1.z.coerce.date({ error: "Data inválida" }),
-        // Transformações seguras para o Prisma (string | null)
         placaCartaoUsado: zod_1.z.string().optional().nullable().transform(v => v || null),
         justificativa: zod_1.z.string().optional().nullable().transform(v => v || null),
         observacoes: zod_1.z.string().optional().nullable().transform(v => v || null),
-        // Validação de URL corrigida: Aceita string (que será validada como URL) ou null/undefined se vazio
         fotoNotaFiscalUrl: zod_1.z.string().url({ message: "URL da foto inválida" })
             .optional()
             .nullable()
-            .or(zod_1.z.literal('')) // Aceita string vazia vinda do front
+            .or(zod_1.z.literal(''))
             .transform(v => v || null),
         itens: zod_1.z.array(itemSchema).min(1, { message: "Adicione pelo menos um item" }),
     })
 });
-// --- Manutenção ---
 exports.manutencaoSchema = zod_1.z.object({
     body: zod_1.z.object({
         veiculoId: zod_1.z.string().optional().nullable().transform(v => v || null),

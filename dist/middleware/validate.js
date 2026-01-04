@@ -4,7 +4,6 @@ exports.validate = void 0;
 const zod_1 = require("zod");
 const validate = (schema) => async (req, res, next) => {
     try {
-        // 1. Validação assíncrona
         const result = await schema.parseAsync({
             body: req.body,
             query: req.query,

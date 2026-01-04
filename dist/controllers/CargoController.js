@@ -3,7 +3,6 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.CargoController = void 0;
 const prisma_1 = require("../lib/prisma");
 class CargoController {
-    // Criar Cargo + Requisitos iniciais
     create = async (req, res, next) => {
         try {
             if (!['ADMIN', 'RH', 'ENCARREGADO'].includes(req.user?.role || '')) {
@@ -26,7 +25,7 @@ class CargoController {
             res.status(201).json(cargo);
         }
         catch (error) {
-            next(error); // Middleware trata P2002 (nome duplicado)
+            next(error);
         }
     };
     list = async (req, res, next) => {
@@ -59,10 +58,9 @@ class CargoController {
             res.json({ message: 'Cargo removido com sucesso.' });
         }
         catch (error) {
-            next(error); // Middleware trata P2003 (FK constraint - colaboradores vinculados)
+            next(error);
         }
     };
-    // Adicionar um novo treinamento a um cargo existente
     addRequisito = async (req, res, next) => {
         try {
             if (!['ADMIN', 'RH'].includes(req.user?.role || '')) {
@@ -75,7 +73,6 @@ class CargoController {
                 return;
             }
             const dados = req.body;
-            // Opcional: Verificar existência (O erro de FK também trataria, mas 404 é mais claro)
             const cargoExiste = await prisma_1.prisma.cargo.findUnique({ where: { id: cargoId } });
             if (!cargoExiste) {
                 res.status(404).json({ error: "Cargo não encontrado" });

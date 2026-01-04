@@ -10,29 +10,21 @@ class PlanoManutencaoController {
                 res.status(403).json({ error: 'Acesso negado.' });
                 return;
             }
-            // req.body já validado e tipado pelo middleware
             const { veiculoId, descricao, tipoIntervalo, valorIntervalo } = req.body;
-            // Busca KM atual para cálculo
             const kmAtual = await KmService_1.KmService.getUltimoKMRegistrado(veiculoId);
             let kmProximaManutencao = null;
             let dataProximaManutencao = null;
-            // Lógica de Negócio: Calcular vencimento
             if (tipoIntervalo === 'KM') {
                 if (valorIntervalo > 0) {
-                    // Lógica de Múltiplos (Ex: 20, 40, 60...)
-                    // Se kmAtual = 111.405 e intervalo = 20.000:
-                    // 111.405 / 20.000 = 5.57 -> Floor = 5
-                    // (5 + 1) * 20.000 = 120.000 KM (Próxima revisão correta)
                     const multiplicador = Math.floor(kmAtual / valorIntervalo) + 1;
                     kmProximaManutencao = multiplicador * valorIntervalo;
                 }
                 else {
-                    kmProximaManutencao = kmAtual; // Segurança contra divisão por zero
+                    kmProximaManutencao = kmAtual;
                 }
             }
             else if (tipoIntervalo === 'TEMPO') {
                 const data = new Date();
-                // valorIntervalo já é number aqui
                 data.setMonth(data.getMonth() + valorIntervalo);
                 dataProximaManutencao = data;
             }

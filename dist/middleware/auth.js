@@ -12,7 +12,6 @@ const authenticateToken = (req, res, next) => {
     if (token == null) {
         return res.status(401).json({ error: 'Token não fornecido.' });
     }
-    // Uso centralizado do segredo
     jsonwebtoken_1.default.verify(token, env_1.env.TOKEN_SECRET, (err, user) => {
         if (err) {
             if (err.name === 'TokenExpiredError') {

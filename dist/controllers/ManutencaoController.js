@@ -17,9 +17,6 @@ class ManutencaoController {
                 return;
             }
             const dados = req.body;
-            // =================================================================================
-            // 1. INTELIGÊNCIA: ALERTA DE GARANTIA (90 Dias)
-            // =================================================================================
             if (dados.veiculoId) {
                 const diasGarantia = 90;
                 const dataLimite = new Date();
@@ -41,16 +38,12 @@ class ManutencaoController {
                     }
                 }
             }
-            // =================================================================================
-            // 2. VALIDAÇÃO DE KM (AUDITORIA)
-            // =================================================================================
             if (dados.veiculoId && dados.kmAtual) {
                 const ultimoKM = await KmService_1.KmService.getUltimoKMRegistrado(dados.veiculoId);
                 if (dados.kmAtual < ultimoKM) {
                     console.warn(`[Manutenção] Retroativo: KM ${dados.kmAtual} < ${ultimoKM}`);
                 }
             }
-            // 3. Preparação dos Itens (COM CORREÇÃO DECIMAL)
             let custoTotalGeral = 0;
             const itensParaCriar = dados.itens.map((item) => {
                 const total = item.quantidade * item.valorPorUnidade;
@@ -63,7 +56,6 @@ class ManutencaoController {
                 };
             });
             custoTotalGeral = Number(custoTotalGeral.toFixed(2));
-            // 4. Transação (Criação)
             const novaOS = await prisma_1.prisma.$transaction(async (tx) => {
                 return await tx.ordemServico.create({
                     data: {
@@ -116,7 +108,6 @@ class ManutencaoController {
                     };
                 });
                 custoTotalGeral = Number(custoTotalGeral.toFixed(2));
-                // Remove itens antigos para recriar (simples e eficaz para updates complexos)
                 await tx.itemOrdemServico.deleteMany({ where: { ordemServicoId: id } });
                 return await tx.ordemServico.update({
                     where: { id },

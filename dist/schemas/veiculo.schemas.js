@@ -7,8 +7,10 @@ exports.veiculoSchema = zod_1.z.object({
         placa: zod_1.z.string({ error: "Placa obrigatória" })
             .length(7, { message: "A placa deve ter 7 caracteres" })
             .transform(v => v.toUpperCase()),
-        modelo: zod_1.z.string({ error: "Modelo obrigatório" }).min(2, { message: "Modelo muito curto" }),
-        marca: zod_1.z.string().optional().nullable().transform(v => v || null),
+        modelo: zod_1.z.string({ error: "Modelo obrigatório" })
+            .min(2, { message: "Modelo muito curto" }),
+        marca: zod_1.z.string({ error: "Marca é obrigatória" })
+            .min(2, { message: "Informe a marca correta" }),
         ano: zod_1.z.coerce.number({ error: "Ano inválido" })
             .int()
             .min(1900, { message: "Ano inválido" })
@@ -21,7 +23,7 @@ exports.veiculoSchema = zod_1.z.object({
         status: zod_1.z.enum(['ATIVO', 'EM_MANUTENCAO', 'INATIVO']).optional().default('ATIVO'),
         vencimentoCiv: zod_1.z.coerce.date().optional().nullable(),
         vencimentoCipp: zod_1.z.coerce.date().optional().nullable(),
-        kmCadastro: zod_1.z.coerce.number().optional().default(0),
+        kmAtual: zod_1.z.coerce.number({ error: "KM inválido" }).optional().default(0),
     })
 });
 //# sourceMappingURL=veiculo.schemas.js.map

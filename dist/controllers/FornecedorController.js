@@ -20,7 +20,7 @@ class FornecedorController {
             res.status(201).json(fornecedor);
         }
         catch (error) {
-            next(error); // Middleware trata P2002 (nome/CNPJ duplicado)
+            next(error);
         }
     };
     list = async (req, res, next) => {
@@ -62,7 +62,6 @@ class FornecedorController {
                 return;
             }
             const { nome, cnpj, tipo } = req.body;
-            // Se o ID não existir, o Prisma lança erro P2025, que o middleware converte em 404
             const updated = await prisma_1.prisma.fornecedor.update({
                 where: { id },
                 data: {
@@ -92,7 +91,7 @@ class FornecedorController {
             res.json({ message: 'Removido com sucesso' });
         }
         catch (error) {
-            next(error); // Middleware trata P2003 (FK violation)
+            next(error);
         }
     };
 }

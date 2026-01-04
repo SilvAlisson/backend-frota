@@ -11,7 +11,6 @@ const formatDateToInput = (date) => {
     if (!date)
         return null;
     const d = new Date(date);
-    // Garante UTC para evitar problemas de fuso horário
     const dataCorrigida = new Date(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
     return dataCorrigida.toISOString().split('T')[0];
 };
